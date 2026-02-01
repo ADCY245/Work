@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Find Home-Visit Doctors | PhysiHome{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <p class="eyebrow">Find trusted care</p>
+  <h1>Search doctors offering home visits near you.</h1>
+  <p>Filter by specialization, distance, and availability. Start a secure chat to confirm a visit.</p>
+</section>
+
+<section class="search-panel card">
+  <form class="search-form">
+    <label>
+      Location (PIN or City)
+      <input type="text" placeholder="e.g., 560038" />
+    </label>
+    <label>
+      Specialization
+      <select>
+        <option value="">Any</option>
+        <option value="physiotherapy">Physiotherapy</option>
+        <option value="geriatrics">Geriatric Care</option>
+        <option value="general">General Physician</option>
+      </select>
+    </label>
+    <label>
+      Distance radius
+      <select>
+        <option value="5">Within 5 km</option>
+        <option value="10">Within 10 km</option>
+        <option value="20">Within 20 km</option>
+      </select>
+    </label>
+    <button type="submit" class="btn primary">Search</button>
+  </form>
+</section>
+
+<section class="card-list">
+  {% for doctor in doctors %}
+  <article class="card doctor-card">
+    <header>
+      <h3>{{ doctor.name }}</h3>
+      <span class="badge">{{ doctor.specialization }}</span>
+    </header>
+    <p><strong>Distance:</strong> {{ doctor.distance }}</p>
+    <p><strong>Availability:</strong> {{ doctor.availability }}</p>
+    <div class="actions">
+      <button class="btn ghost">View profile</button>
+      <button class="btn primary">Start chat</button>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

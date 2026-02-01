@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}PhysiHome{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='css/main.css') }}" />
+    <script defer src="{{ url_for('static', path='js/main.js') }}"></script>
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="navbar">
+        <div class="brand">PhysiHome</div>
+        <ul class="nav-links">
+          <li><a href="/">Home</a></li>
+          <li><a href="/about">About Us</a></li>
+          <li><a href="/contact">Contact Us</a></li>
+          {% if show_messages %}
+          <li><a href="/messages">Messages</a></li>
+          {% endif %}
+        </ul>
+        <div class="profile-menu" data-auth="{{ 'true' if is_authenticated else 'false' }}">
+          <div class="profile-icon" tabindex="0">👤</div>
+          <div class="dropdown">
+            {% if is_authenticated %}
+            <a href="/profile">Profile</a>
+            {% if show_admin %}
+            <a href="/admin">Admin Dashboard</a>
+            {% endif %}
+            <button data-action="logout">Logout</button>
+            {% else %}
+            <a href="/login">Login</a>
+            <a href="/signup">Sign Up</a>
+            {% endif %}
+          </div>
+        </div>
+      </nav>
+    </header>
+
+    <main>{% block content %}{% endblock %}</main>
+
+    <footer class="site-footer">
+      <p>&copy; {{ current_year }} PhysiHome. Home healthcare, simplified.</p>
+    </footer>
+  </body>
+</html>

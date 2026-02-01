@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Contact PhysiHome{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <p class="eyebrow">Here for you</p>
+  <h1>Contact PhysiHome</h1>
+  <p>
+    Need help onboarding doctors, planning a home visit, or exploring partnerships? Reach our care
+    coordinators via the form below or email support@physihome.in.
+  </p>
+</section>
+
+<section class="contact-grid">
+  <form class="card">
+    <label>
+      Full Name
+      <input type="text" placeholder="Your name" required />
+    </label>
+    <label>
+      Email Address
+      <input type="email" placeholder="you@example.com" required />
+    </label>
+    <label>
+      Message
+      <textarea rows="4" placeholder="Tell us how we can help" required></textarea>
+    </label>
+    <button type="submit" class="btn primary">Send message</button>
+  </form>
+  <div class="card contact-details">
+    <h3>Support hours</h3>
+    <p>Daily, 8:00 AM – 10:00 PM IST</p>
+    <h3>Secure hotline</h3>
+    <p>+91 80 5555 0101 (for emergencies only)</p>
+    <h3>HQ</h3>
+    <p>Indiranagar, Bengaluru</p>
+  </div>
+</section>
+{% endblock %}

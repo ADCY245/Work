@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}PhysiHome | Home Visit Doctors{% endblock %}
+{% block content %}
+<section class="hero">
+  <div class="hero-text">
+    <p class="eyebrow">Trusted doctors • Home comfort • Secure messaging</p>
+    <h1>Healthcare that comes home to you.</h1>
+    <p>
+      PhysiHome connects patients with curated physiotherapists and doctors who offer
+      safe, compliant home visits. Book, chat, and stay informed without revealing
+      personal phone numbers or email IDs.
+    </p>
+    <div class="hero-cta">
+      <a class="btn primary" href="/doctors">Find a home-visit doctor</a>
+      <a class="btn ghost" href="/signup">Create patient account</a>
+    </div>
+  </div>
+  <div class="hero-visual">
+    <div class="card">
+      <h3>Same-day visit</h3>
+      <p>Verified physiotherapist arrives at 5:30 PM</p>
+      <ul>
+        <li>Blood pressure & vitals</li>
+        <li>Mobility assessment</li>
+        <li>Personalized rehab plan</li>
+      </ul>
+    </div>
+    <div class="floating-message patient">“Thank you for guiding my dad’s recovery!”</div>
+    <div class="floating-message doctor">“Daily progress looks great—see you tomorrow.”</div>
+  </div>
+</section>
+
+<section class="pillars">
+  <article>
+    <h3>Verified experts</h3>
+    <p>Every doctor is background-checked, licensed, and rated by patients.</p>
+  </article>
+  <article>
+    <h3>Privacy-first platform</h3>
+    <p>No personal contact info is shared. All chats stay inside PhysiHome.</p>
+  </article>
+  <article>
+    <h3>Home visit logistics</h3>
+    <p>Share addresses securely, track visit status, and receive after-care notes.</p>
+  </article>
+</section>
+
+<section class="how-it-works">
+  <header>
+    <p class="eyebrow">Built for seamless care</p>
+    <h2>How PhysiHome works</h2>
+  </header>
+  <ol>
+    <li>
+      <span class="step">1</span>
+      <h4>Sign up & verify</h4>
+      <p>Create a patient or doctor account and complete secure onboarding.</p>
+    </li>
+    <li>
+      <span class="step">2</span>
+      <h4>Search nearby doctors</h4>
+      <p>Filter by distance, specialization, and availability for home visits.</p>
+    </li>
+    <li>
+      <span class="step">3</span>
+      <h4>Chat & schedule</h4>
+      <p>Discuss care plans via private messages and lock in a convenient visit slot.</p>
+    </li>
+    <li>
+      <span class="step">4</span>
+      <h4>Stay connected</h4>
+      <p>Doctors share notes, exercises, and follow-ups right inside the platform.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="cta-banner">
+  <div>
+    <h2>Ready to bring expert care home?</h2>
+    <p>Patients, doctors, and admins get dedicated dashboards tailored to their role.</p>
+  </div>
+  <div>
+    <a class="btn primary" href="/signup">Get started</a>
+    <a class="btn secondary" href="/contact">Talk to our team</a>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Login | PhysiHome{% endblock %}
+{% block content %}
+<section class="auth-card card">
+  <h1>Welcome back</h1>
+  <p>Login to continue booking home visits and chatting securely with doctors.</p>
+  <form class="stack" method="post" action="/api/auth/login">
+    <label>
+      Email address
+      <input type="email" name="email" placeholder="you@family.in" required />
+    </label>
+    <label>
+      Password
+      <input type="password" name="password" placeholder="Enter password" required />
+    </label>
+    <button class="btn primary" type="submit">Sign in</button>
+  </form>
+  <p class="small">
+    No account?
+    <a href="/signup">Create one</a>
+  </p>
+</section>
+{% endblock %}

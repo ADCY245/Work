@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Create Account | PhysiHome{% endblock %}
+{% block content %}
+<section class="auth-card card">
+  <h1>Join PhysiHome</h1>
+  <p>Set up a secure patient or doctor account in a few minutes.</p>
+  <form class="stack" method="post" action="/api/auth/signup">
+    <label>
+      Full Name
+      <input type="text" name="full_name" placeholder="Your name" required />
+    </label>
+    <label>
+      Email address
+      <input type="email" name="email" placeholder="you@family.in" required />
+    </label>
+    <label>
+      Phone number
+      <input type="tel" name="phone" placeholder="10-digit number" required />
+    </label>
+    <label>
+      Date of birth
+      <input type="date" name="dob" required />
+    </label>
+    <label>
+      Account type
+      <select name="role" required>
+        <option value="user">Patient</option>
+        <option value="doctor">Doctor</option>
+      </select>
+    </label>
+    <label>
+      Password
+      <input type="password" name="password" placeholder="Create a strong password" required />
+    </label>
+    <button class="btn primary" type="submit">Create account</button>
+  </form>
+  <p class="small">
+    Already with us?
+    <a href="/login">Login</a>
+  </p>
+</section>
+{% endblock %}
