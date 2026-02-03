@@ -276,6 +276,92 @@ async def doctor_signup(
     )
 
 
+@router.post("/resend-otp", response_class=HTMLResponse)
+async def resend_otp(
+    request: Request,
+    email: str = Form(...),
+):
+    db = get_database()
+    normalized_email = _normalize_email(email)
+    pending_user = await db.pending_users.find_one({"email": normalized_email})
+    user = await db.users.find_one({"email": normalized_email})
+
+    target_user = None
+    source = None
+    if pending_user:
+        target_user = pending_user
+        source = "pending"
+    elif user:
+        target_user = user
+        source = "users"
+
+    if not target_user:
+        return templates.TemplateResponse(
+            "auth/verify_otp.html",
+            base_context(
+                request,
+                email=normalized_email,
+                role=None,
+                error="Account not found. Please start over.",
+            ),
+            status_code=404,
+        )
+
+    role = target_user.get("role")
+
+    if source == "users" and target_user.get("is_otp_verified"):
+        return templates.TemplateResponse(
+            "auth/verify_otp.html",
+            base_context(
+                request,
+                email=normalized_email,
+                role=role,
+                error="This account is already verified. Please log in instead.",
+            ),
+            status_code=400,
+        )
+
+    otp = generate_otp(settings.otp_length)
+    otp_hash = hash_otp(otp, settings.secret_key)
+    now = utcnow()
+
+    if source == "pending":
+        await db.pending_users.update_one(
+            {"_id": target_user["_id"]},
+            {
+                "$set": {
+                    "otp_hash": otp_hash,
+                    "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
+                }
+            },
+        )
+    else:
+        await db.users.update_one(
+            {"_id": target_user["_id"]},
+            {
+                "$set": {
+                    "otp_hash": otp_hash,
+                    "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
+                }
+            },
+        )
+
+    email_error = await _send_otp_email(normalized_email, otp)
+    otp_debug = otp if email_error else None
+
+    return templates.TemplateResponse(
+        "auth/verify_otp.html",
+        base_context(
+            request,
+            email=normalized_email,
+            role=role,
+            email_error=email_error,
+            otp_debug=otp_debug,
+            success_message="We sent a new code. Please check your inbox.",
+        ),
+    )
+
+
 @router.post("/verify-otp", response_class=HTMLResponse)
 async def verify_otp_handler(
     request: Request,

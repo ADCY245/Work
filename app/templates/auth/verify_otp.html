@@ -11,12 +11,22 @@
   <div class="alert error">{{ error }}</div>
   {% endif %}
 
+  {% if success_message %}
+  <div class="alert success">{{ success_message }}</div>
+  {% endif %}
+
   {% if email_error %}
   <div class="alert warn">We could not send the OTP email. {{ email_error }}</div>
   {% endif %}
 
   {% if admin_email_error %}
   <div class="alert warn">We could not notify admins about your documents. {{ admin_email_error }}</div>
+  {% endif %}
+
+  {% if otp_debug %}
+  <div class="alert info">
+    Email delivery is delayed, but here is your verification code: <strong>{{ otp_debug }}</strong>.
+  </div>
   {% endif %}
 
   <form class="stack" method="post" action="/api/auth/verify-otp">
@@ -34,6 +44,15 @@
       />
     </label>
     <button class="btn primary" type="submit">Verify</button>
+  </form>
+
+  <form
+    class="stack" style="margin-top: 1rem"
+    method="post"
+    action="/api/auth/resend-otp"
+  >
+    <input type="hidden" name="email" value="{{ email }}" />
+    <button class="btn ghost" type="submit">Resend code</button>
   </form>
 
   <p class="small">
