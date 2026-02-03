@@ -18,9 +18,17 @@
     <div class="card-list">
       {% for u in users %}
       <article class="card user-card">
-        <h3>{{ u.name }}</h3>
-        <p>Email: {{ u.email }}</p>
+        <header>
+          <img src="{{ u.avatar_url }}" alt="{{ u.name }}" />
+          <div>
+            <h3>{{ u.name }}</h3>
+            <p>{{ u.email }}</p>
+          </div>
+        </header>
         <p>Role: {{ u.role }}</p>
+        {% if u.gender %}
+        <p>Gender: {{ u.gender|title }}</p>
+        {% endif %}
         {% if u.doctor_verification_status %}
         <p>Status: {{ u.doctor_verification_status }}</p>
         {% endif %}
@@ -34,15 +42,59 @@
     <div class="card-list">
       {% for d in doctors %}
       <article class="card user-card">
-        <h3>{{ d.name }}</h3>
-        <p>Email: {{ d.email }}</p>
-        <p>Specialization: {{ d.specialization }}</p>
+        <header>
+          <img src="{{ d.avatar_url }}" alt="{{ d.name }}" />
+          <div>
+            <h3>{{ d.name }}</h3>
+            <p>{{ d.email }}</p>
+          </div>
+        </header>
+        <p>Specialization: {{ d.specialization or 'General' }}</p>
       </article>
       {% endfor %}
     </div>
-    {% else %}
-    <p class="muted">No pending verification requests.</p>
-    {% endif %}
+  </div>
+
+  <div id="pending" class="tab-content">
+    <h2>Pending Verification</h2>
+    <div class="card-list">
+      {% for p in pending %}
+      <article class="card user-card">
+        <header>
+          <img src="{{ p.avatar_url }}" alt="{{ p.name }}" />
+          <div>
+            <h3>{{ p.name }}</h3>
+            <p>{{ p.email }}</p>
+          </div>
+        </header>
+        <p>Status: {{ p.doctor_verification_status }}</p>
+        <div class="documents">
+          {% if p.self_photo_url %}
+          <div>
+            <h4>Self Photo</h4>
+            <img src="{{ p.self_photo_url }}" alt="Self Photo" />
+          </div>
+          {% endif %}
+          {% if p.degree_photo_url %}
+          <div>
+            <h4>Degree</h4>
+            <img src="{{ p.degree_photo_url }}" alt="Degree" />
+          </div>
+          {% endif %}
+          {% if p.visiting_card_url %}
+          <div>
+            <h4>Visiting Card</h4>
+            <img src="{{ p.visiting_card_url }}" alt="Visiting Card" />
+          </div>
+          {% endif %}
+        </div>
+        <div class="actions">
+          <button class="btn primary" onclick="approveDoctor('{{ p._id }}')">Approve</button>
+          <button class="btn ghost" onclick="rejectDoctor('{{ p._id }}')">Reject</button>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
   </div>
 </section>
 {% endblock %}

@@ -35,13 +35,24 @@ def _normalize_email(email: str) -> str:
     return email.strip().lower()
 
 
-async def _file_to_payload(upload: UploadFile) -> dict[str, Any]:
+async def _file_to_payload(upload: UploadFile | None) -> dict[str, Any] | None:
+    if upload is None:
+        return None
     content = await upload.read()
+    if not content:
+        return None
     return {
         "filename": upload.filename or "upload",
         "content_type": upload.content_type or "application/octet-stream",
         "data": content,
     }
+
+
+def _normalize_gender(value: str | None) -> str | None:
+    gender = (value or "").strip().lower()
+    if gender in {"male", "female", "other"}:
+        return gender
+    return None
 
 
 async def _send_otp_email(email: str, otp: str) -> str | None:
@@ -76,6 +87,8 @@ async def signup(
     phone: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
+    gender: str | None = Form(None),
+    profile_photo: UploadFile | None = File(None),
 ):
     db = get_database()
     normalized_email = _normalize_email(email)
@@ -92,6 +105,8 @@ async def signup(
     otp_hash = hash_otp(otp, settings.secret_key)
     now = utcnow()
 
+    profile_photo_payload = await _file_to_payload(profile_photo)
+
     user_doc = {
         "first_name": first_name.strip(),
         "last_name": last_name.strip(),
@@ -101,6 +116,8 @@ async def signup(
         "password_hash": hash_password(password),
         "role": "user",
         "is_admin": normalized_email in settings.admin_emails,
+        "gender": _normalize_gender(gender),
+        "profile_photo": profile_photo_payload,
         "is_otp_verified": False,
         "otp_hash": otp_hash,
         "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
@@ -132,8 +149,10 @@ async def doctor_signup(
     phone: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
+    gender: str | None = Form(None),
     self_photo: UploadFile = File(...),
     degree_photo: UploadFile = File(...),
+    visiting_card: UploadFile | None = File(None),
 ):
     db = get_database()
     normalized_email = _normalize_email(email)
@@ -152,6 +171,14 @@ async def doctor_signup(
 
     self_payload = await _file_to_payload(self_photo)
     degree_payload = await _file_to_payload(degree_photo)
+    visiting_card_payload = await _file_to_payload(visiting_card)
+
+    if not self_payload or not degree_payload:
+        return templates.TemplateResponse(
+            "auth/doctor_signup.html",
+            base_context(request, error="Both self photo and degree certificate are required."),
+            status_code=400,
+        )
 
     user_doc = {
         "first_name": first_name.strip(),
@@ -162,6 +189,8 @@ async def doctor_signup(
         "password_hash": hash_password(password),
         "role": "doctor",
         "is_admin": normalized_email in settings.admin_emails,
+        "gender": _normalize_gender(gender),
+        "profile_photo": self_payload,
         "is_otp_verified": False,
         "otp_hash": otp_hash,
         "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
@@ -170,6 +199,7 @@ async def doctor_signup(
         "documents": {
             "self_photo": self_payload,
             "degree_photo": degree_payload,
+            "visiting_card": visiting_card_payload,
         },
         "created_at": now,
     }
@@ -182,6 +212,14 @@ async def doctor_signup(
         (self_payload["filename"], self_payload["data"], self_payload["content_type"]),
         (degree_payload["filename"], degree_payload["data"], degree_payload["content_type"]),
     ]
+    if visiting_card_payload:
+        attachments.append(
+            (
+                visiting_card_payload["filename"],
+                visiting_card_payload["data"],
+                visiting_card_payload["content_type"],
+            )
+        )
     admin_email_error = await _send_doctor_documents_email(normalized_email, attachments)
 
     return templates.TemplateResponse(

@@ -16,6 +16,35 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 router = APIRouter()
 settings = get_settings()
 
+AVATAR_MAP = {
+    "male": "/static/img/avatar-male.svg",
+    "female": "/static/img/avatar-female.svg",
+    "default": "/static/img/avatar-neutral.svg",
+}
+
+
+def to_data_uri(payload):
+    if not payload:
+        return None
+    data = payload.get("data")
+    if not data:
+        return None
+    encoded = base64.b64encode(data).decode("utf-8")
+    content_type = payload.get("content_type") or "image/png"
+    return f"data:{content_type};base64,{encoded}"
+
+
+def resolve_avatar(user) -> str:
+    if not user:
+        return AVATAR_MAP["default"]
+    photo_uri = to_data_uri(user.get("profile_photo"))
+    if photo_uri:
+        return photo_uri
+    gender = (user.get("gender") or "").lower()
+    if gender in AVATAR_MAP:
+        return AVATAR_MAP[gender]
+    return AVATAR_MAP["default"]
+
 
 def base_context(request: Request, **extra):
     context = {
@@ -25,6 +54,7 @@ def base_context(request: Request, **extra):
         "show_messages": extra.pop("show_messages", False),
         "show_admin": extra.pop("show_admin", False),
         "current_user": extra.pop("current_user", None),
+        "avatar_url": extra.pop("avatar_url", AVATAR_MAP["default"]),
     }
     context.update(extra)
     return context
@@ -41,6 +71,7 @@ async def build_context(request: Request, **extra):
         show_admin=show_admin,
         show_messages=show_messages,
         current_user=user,
+        avatar_url=resolve_avatar(user),
         **extra,
     )
 
@@ -65,7 +96,7 @@ async def doctors(request: Request):
     db = get_database()
     cursor = db.users.find(
         {"role": "doctor", "doctor_verification_status": "verified"},
-        {"first_name": 1, "last_name": 1, "specialization": 1},
+        {"first_name": 1, "last_name": 1, "specialization": 1, "gender": 1, "profile_photo": 1},
     )
     doctors_list = []
     async for doc in cursor:
@@ -75,6 +106,7 @@ async def doctors(request: Request):
                 "specialization": doc.get("specialization", "General"),
                 "distance": "TBD",
                 "availability": "TBD",
+                "avatar_url": resolve_avatar(doc),
             }
         )
     return templates.TemplateResponse(
@@ -104,20 +136,20 @@ async def profile(request: Request, pending_verification: bool = Query(False)):
         return RedirectResponse(url="/login", status_code=303)
     profile_data = {
         "name": f"{user['first_name']} {user['last_name']}",
-        "age": "N/A",
-        "contact": user["phone"],
-        "email": user["email"],
-        "role": user["role"],
+        "contact": user.get("phone"),
+        "email": user.get("email"),
+        "dob": user.get("dob"),
+        "role": user.get("role"),
+        "gender": user.get("gender"),
         "specialization": user.get("specialization"),
         "pending_verification": pending_verification,
-        "documents": user.get("documents"),
+        "doctor_verification_status": user.get("doctor_verification_status"),
     }
 
-    def to_data_uri(payload):
-        if not payload:
-            return None
-        encoded = base64.b64encode(payload.get("data", b"")).decode("utf-8")
-        return f"data:{payload.get('content_type')};base64,{encoded}"
+    documents = user.get("documents", {})
+    self_photo = documents.get("self_photo")
+    degree_photo = documents.get("degree_photo")
+    visiting_card = documents.get("visiting_card")
 
     return templates.TemplateResponse(
         "profile.html",
@@ -127,6 +159,8 @@ async def profile(request: Request, pending_verification: bool = Query(False)):
             pending_verification=pending_verification,
             self_photo_url=to_data_uri(self_photo),
             degree_photo_url=to_data_uri(degree_photo),
+            visiting_card_url=to_data_uri(visiting_card),
+            profile_avatar_url=resolve_avatar(user),
         ),
     )
 
@@ -163,12 +197,6 @@ async def admin_dashboard(request: Request):
     doctors_verified = []
     pending_verification = []
 
-    def to_data_uri(payload):
-        if not payload:
-            return None
-        encoded = base64.b64encode(payload.get("data", b"")).decode("utf-8")
-        return f"data:{payload.get('content_type')};base64,{encoded}"
-
     for record in users:
         profile = {
             "name": f"{record.get('first_name', '')} {record.get('last_name', '')}".strip(),
@@ -178,11 +206,15 @@ async def admin_dashboard(request: Request):
             "doctor_verification_status": record.get("doctor_verification_status"),
             "self_photo_url": None,
             "degree_photo_url": None,
+            "visiting_card_url": None,
+            "gender": record.get("gender"),
+            "avatar_url": resolve_avatar(record),
         }
 
         documents = record.get("documents", {})
         profile["self_photo_url"] = to_data_uri(documents.get("self_photo"))
         profile["degree_photo_url"] = to_data_uri(documents.get("degree_photo"))
+        profile["visiting_card_url"] = to_data_uri(documents.get("visiting_card"))
 
         if record.get("role") == "doctor":
             if record.get("doctor_verification_status") == "verified":

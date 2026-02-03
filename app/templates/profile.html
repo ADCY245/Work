@@ -3,8 +3,14 @@
 {% block content %}
 <section class="profile-card card" data-pending-verification="{{ 'true' if pending_verification else 'false' }}">
   <header class="auth-header">
-    <h1>Profile</h1>
-    <p>Review your saved details.</p>
+    <div class="profile-avatar">
+      <img src="{{ profile_avatar_url }}" alt="Profile avatar" />
+    </div>
+    <h1>{{ profile.name }}</h1>
+    <p>Role: {{ profile.role }}</p>
+    {% if profile.gender %}
+    <span class="badge">{{ profile.gender|title }}</span>
+    {% endif %}
   </header>
 
   {% if profile.pending_verification %}
@@ -14,10 +20,6 @@
   {% endif %}
 
   <div class="profile-grid">
-    <div>
-      <p class="label">Full name</p>
-      <p>{{ profile.name }}</p>
-    </div>
     <div>
       <p class="label">Email</p>
       <p>{{ profile.email }}</p>
@@ -32,8 +34,14 @@
     </div>
     <div>
       <p class="label">Role</p>
-      <p>{{ profile.role }}</p>
+      <p>{{ profile.role|title }}</p>
     </div>
+    {% if profile.specialization %}
+    <div>
+      <p class="label">Specialization</p>
+      <p>{{ profile.specialization }}</p>
+    </div>
+    {% endif %}
     {% if profile.doctor_verification_status %}
     <div>
       <p class="label">Doctor verification</p>
@@ -42,7 +50,7 @@
     {% endif %}
   </div>
 
-  {% if self_photo_url or degree_photo_url %}
+  {% if self_photo_url or degree_photo_url or visiting_card_url %}
   <div class="profile-docs">
     <h2>Uploaded documents</h2>
     <div class="doc-grid">
@@ -56,6 +64,12 @@
       <figure class="doc-card">
         <img src="{{ degree_photo_url }}" alt="Degree document" />
         <figcaption>Degree certificate</figcaption>
+      </figure>
+      {% endif %}
+      {% if visiting_card_url %}
+      <figure class="doc-card">
+        <img src="{{ visiting_card_url }}" alt="Visiting card" />
+        <figcaption>Visiting card</figcaption>
       </figure>
       {% endif %}
     </div>

@@ -38,8 +38,11 @@
   {% for doctor in doctors %}
   <article class="card doctor-card">
     <header>
-      <h3>{{ doctor.name }}</h3>
-      <span class="badge">{{ doctor.specialization }}</span>
+      <img src="{{ doctor.avatar_url }}" alt="{{ doctor.name }}" />
+      <div>
+        <h3>{{ doctor.name }}</h3>
+        <span class="badge">{{ doctor.specialization }}</span>
+      </div>
     </header>
     <p><strong>Distance:</strong> {{ doctor.distance }}</p>
     <p><strong>Availability:</strong> {{ doctor.availability }}</p>

@@ -34,9 +34,25 @@
       </label>
     </div>
 
-    <label>
-      Email address
-      <input type="email" name="email" placeholder="you@family.in" required />
+    <div class="form-grid two-col">
+      <label>
+        Email address
+        <input type="email" name="email" placeholder="you@family.in" required />
+      </label>
+      <label>
+        Gender (optional)
+        <select name="gender">
+          <option value="">Prefer not to say</option>
+          <option value="female">Female</option>
+          <option value="male">Male</option>
+          <option value="other">Other</option>
+        </select>
+      </label>
+    </div>
+
+    <label class="upload">
+      Profile photo (optional)
+      <input type="file" name="profile_photo" accept="image/*" />
     </label>
 
     <label>
