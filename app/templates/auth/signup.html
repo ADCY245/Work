@@ -26,7 +26,13 @@
     <div class="form-grid two-col">
       <label>
         Date of birth
-        <input type="date" name="dob" required />
+        <input 
+          type="date" 
+          name="dob" 
+          required 
+          pattern="\d{4}-\d{2}-\d{2}"
+          title="YYYY-MM-DD format"
+        />
       </label>
       <label>
         Contact number
