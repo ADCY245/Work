@@ -137,6 +137,7 @@ async def signup(
 
     await db.users.insert_one(user_doc)
     email_error = await _send_otp_email(normalized_email, otp)
+    otp_debug = otp if email_error else None
 
     return templates.TemplateResponse(
         "auth/verify_otp.html",
@@ -145,6 +146,7 @@ async def signup(
             email=normalized_email,
             role="user",
             email_error=email_error,
+            otp_debug=otp_debug,
         ),
     )
 
@@ -247,6 +249,7 @@ async def doctor_signup(
             role="doctor",
             email_error=email_error,
             admin_email_error=admin_email_error,
+            otp_debug=otp_debug,
         ),
     )
 
