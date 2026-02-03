@@ -126,8 +126,7 @@ async def signup(
 
     profile_photo_payload = await _file_to_payload(profile_photo)
 
-    # Store pending signup in a separate collection until OTP is verified
-    pending_user_doc = {
+    user_doc = {
         "first_name": first_name.strip(),
         "last_name": last_name.strip(),
         "dob": dob,
@@ -138,12 +137,15 @@ async def signup(
         "is_admin": normalized_email in settings.admin_emails,
         "gender": _normalize_gender(gender),
         "profile_photo": profile_photo_payload,
+        "is_otp_verified": False,
+        "doctor_verification_status": None,
+        "has_logged_in": False,
         "otp_hash": otp_hash,
         "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
         "created_at": now,
     }
 
-    await db.pending_users.insert_one(pending_user_doc)
+    await db.users.insert_one(user_doc)
     email_error = await _send_otp_email(normalized_email, otp)
     otp_debug = otp if email_error else None
 
@@ -168,6 +170,7 @@ async def doctor_signup(
     phone: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
+    specialization: str = Form(...),
     gender: str | None = Form(None),
     self_photo: UploadFile = File(...),
     degree_photo: UploadFile = File(...),
@@ -244,6 +247,7 @@ async def doctor_signup(
     await db.pending_users.insert_one(pending_user_doc)
 
     email_error = await _send_otp_email(normalized_email, otp)
+    otp_debug = otp if email_error else None
 
     attachments = [
         (self_payload["filename"], self_payload["data"], self_payload["content_type"]),
@@ -281,16 +285,26 @@ async def verify_otp_handler(
     db = get_database()
     normalized_email = _normalize_email(email)
     pending_user = await db.pending_users.find_one({"email": normalized_email})
-    if not pending_user:
+    user = await db.users.find_one({"email": normalized_email})
+
+    target_user = None
+    source = None
+    if pending_user:
+        target_user = pending_user
+        source = "pending"
+    elif user:
+        target_user = user
+        source = "users"
+    else:
         return templates.TemplateResponse(
             "auth/verify_otp.html",
             base_context(request, error="Account not found. Please sign up again."),
             status_code=404,
         )
 
-    role = pending_user.get("role")
-    otp_hash = pending_user.get("otp_hash")
-    otp_expires_at = pending_user.get("otp_expires_at")
+    role = target_user.get("role")
+    otp_hash = target_user.get("otp_hash")
+    otp_expires_at = target_user.get("otp_expires_at")
 
     if not otp_hash or not otp_expires_at:
         return templates.TemplateResponse(
@@ -328,37 +342,54 @@ async def verify_otp_handler(
             status_code=400,
         )
 
-    # Move user from pending_users to users collection after successful OTP verification
-    user_doc = {
-        "first_name": pending_user["first_name"],
-        "last_name": pending_user["last_name"],
-        "dob": pending_user["dob"],
-        "phone": pending_user["phone"],
-        "email": pending_user["email"],
-        "password_hash": pending_user["password_hash"],
-        "role": pending_user["role"],
-        "is_admin": pending_user.get("is_admin", False),
-        "gender": pending_user.get("gender"),
-        "profile_photo": pending_user.get("profile_photo"),
-        "is_otp_verified": True,
-        "doctor_verification_status": pending_user.get("doctor_verification_status"),
-        "specialization": pending_user.get("specialization"),
-        "documents": pending_user.get("documents"),
-        "has_logged_in": True,
-        "created_at": pending_user["created_at"],
-        "verified_at": utcnow(),
-    }
+    verified_at = utcnow()
+    if source == "pending":
+        doctor_status = target_user.get("doctor_verification_status")
+        user_doc = {
+            "first_name": target_user["first_name"],
+            "last_name": target_user["last_name"],
+            "dob": target_user["dob"],
+            "phone": target_user["phone"],
+            "email": target_user["email"],
+            "password_hash": target_user["password_hash"],
+            "role": target_user["role"],
+            "is_admin": target_user.get("is_admin", False),
+            "gender": target_user.get("gender"),
+            "profile_photo": target_user.get("profile_photo"),
+            "is_otp_verified": True,
+            "doctor_verification_status": doctor_status,
+            "specialization": target_user.get("specialization"),
+            "documents": target_user.get("documents"),
+            "has_logged_in": True,
+            "created_at": target_user["created_at"],
+            "verified_at": verified_at,
+        }
 
-    result = await db.users.insert_one(user_doc)
-    await db.pending_users.delete_one({"_id": pending_user["_id"]})
+        result = await db.users.insert_one(user_doc)
+        await db.pending_users.delete_one({"_id": target_user["_id"]})
+        created_user_id = result.inserted_id
+    else:
+        await db.users.update_one(
+            {"_id": target_user["_id"]},
+            {
+                "$set": {
+                    "is_otp_verified": True,
+                    "has_logged_in": True,
+                    "verified_at": verified_at,
+                },
+                "$unset": {"otp_hash": "", "otp_expires_at": ""},
+            },
+        )
+        created_user_id = target_user["_id"]
+        doctor_status = target_user.get("doctor_verification_status")
 
     session_token = create_session_token(
-        {"user_id": str(result.inserted_id), "email": normalized_email},
+        {"user_id": str(created_user_id), "email": normalized_email},
         settings.secret_key,
     )
 
     redirect_target = "/profile"
-    if pending_user.get("role") == "doctor":
+    if role == "doctor" and doctor_status != "verified":
         redirect_target = "/profile?pending_verification=1"
 
     response = RedirectResponse(url=redirect_target, status_code=303)

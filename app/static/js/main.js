@@ -1,4 +1,55 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const initDobFields = () => {
+    const wrappers = document.querySelectorAll("[data-dob-field]");
+
+    const isValidDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+
+    wrappers.forEach((wrapper) => {
+      const dateInput = wrapper.querySelector('input[type="date"]');
+      const textInput = wrapper.querySelector("[data-dob-text]");
+      if (!dateInput || !textInput) return;
+
+      const syncText = () => {
+        if (dateInput.value) {
+          textInput.value = dateInput.value;
+          wrapper.classList.add("filled");
+        }
+      };
+
+      dateInput.addEventListener("change", () => {
+        syncText();
+        textInput.setCustomValidity("");
+      });
+
+      textInput.addEventListener("input", () => {
+        const value = textInput.value.trim();
+        if (!value) {
+          dateInput.value = "";
+          textInput.setCustomValidity("");
+          wrapper.classList.remove("filled");
+          return;
+        }
+        if (isValidDate(value)) {
+          dateInput.value = value;
+          textInput.setCustomValidity("");
+          wrapper.classList.add("filled");
+        } else {
+          textInput.setCustomValidity("Enter date as YYYY-MM-DD");
+        }
+      });
+
+      textInput.addEventListener("blur", () => {
+        if (isValidDate(textInput.value.trim()) || !textInput.value.trim()) {
+          textInput.setCustomValidity("");
+        }
+      });
+
+      syncText();
+    });
+  };
+
+  initDobFields();
+
   const profileCard = document.querySelector(".profile-card");
   if (profileCard?.dataset.pendingVerification === "true") {
     const dialog = document.getElementById("pendingVerificationDialog");

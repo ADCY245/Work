@@ -26,13 +26,25 @@
     <div class="form-grid two-col">
       <label>
         Date of birth
-        <input 
-          type="date" 
-          name="dob" 
-          required 
-          pattern="\d{4}-\d{2}-\d{2}"
-          title="YYYY-MM-DD format"
-        />
+        <div class="dob-input" data-dob-field>
+          <input 
+            type="date" 
+            name="dob" 
+            required 
+            pattern="\d{4}-\d{2}-\d{2}"
+            title="YYYY-MM-DD format"
+          />
+          <div class="dob-text-entry">
+            <input
+              type="text"
+              inputmode="numeric"
+              placeholder="YYYY-MM-DD"
+              aria-label="Type your date of birth as YYYY-MM-DD"
+              data-dob-text
+            />
+            <small class="helper">Type the date or use the picker.</small>
+          </div>
+        </div>
       </label>
       <label>
         Contact number
