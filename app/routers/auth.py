@@ -111,6 +111,15 @@ async def signup(
             status_code=400,
         )
 
+    existing_phone = await db.users.find_one({"phone": phone.strip()})
+    pending_phone = await db.pending_users.find_one({"phone": phone.strip()})
+    if existing_phone or pending_phone:
+        return templates.TemplateResponse(
+            "auth/signup.html",
+            base_context(request, error="An account with this phone number already exists."),
+            status_code=400,
+        )
+
     otp = generate_otp(settings.otp_length)
     otp_hash = hash_otp(otp, settings.secret_key)
     now = utcnow()
@@ -181,6 +190,15 @@ async def doctor_signup(
         return templates.TemplateResponse(
             "auth/doctor_signup.html",
             base_context(request, error="An account with this email already exists."),
+            status_code=400,
+        )
+
+    existing_phone = await db.users.find_one({"phone": phone.strip()})
+    pending_phone = await db.pending_users.find_one({"phone": phone.strip()})
+    if existing_phone or pending_phone:
+        return templates.TemplateResponse(
+            "auth/doctor_signup.html",
+            base_context(request, error="An account with this phone number already exists."),
             status_code=400,
         )
 
