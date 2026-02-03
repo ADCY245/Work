@@ -57,9 +57,18 @@
 
     <label>
       Password
-      <input type="password" name="password" placeholder="Create a strong password" required />
+      <input
+        type="password"
+        name="password"
+        placeholder="Create a strong password"
+        required
+        minlength="8"
+        pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+        title="Must be at least 8 characters and include upper, lower, number, and special character"
+      />
+      <small class="helper">Use at least 8 characters including upper, lower, number, and symbol.</small>
     </label>
-    <button class="btn primary" type="submit">Create account</button>
+    <button class="btn primary" type="submit">Send OTP</button>
   </form>
 
   <p class="small">

@@ -18,6 +18,7 @@ from app.services.auth_utils import (
     hash_otp,
     hash_password,
     utcnow,
+    validate_password_strength,
     verify_otp,
     verify_password,
 )
@@ -93,6 +94,14 @@ async def signup(
     db = get_database()
     normalized_email = _normalize_email(email)
 
+    is_valid_password, password_error = validate_password_strength(password)
+    if not is_valid_password:
+        return templates.TemplateResponse(
+            "auth/signup.html",
+            base_context(request, error=password_error),
+            status_code=400,
+        )
+
     existing = await db.users.find_one({"email": normalized_email})
     if existing:
         return templates.TemplateResponse(
@@ -156,6 +165,14 @@ async def doctor_signup(
 ):
     db = get_database()
     normalized_email = _normalize_email(email)
+
+    is_valid_password, password_error = validate_password_strength(password)
+    if not is_valid_password:
+        return templates.TemplateResponse(
+            "auth/doctor_signup.html",
+            base_context(request, error=password_error),
+            status_code=400,
+        )
 
     existing = await db.users.find_one({"email": normalized_email})
     if existing:
