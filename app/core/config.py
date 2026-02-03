@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     notifications_from_email: str = Field(
         default="no-reply@physihome.com", alias="NOTIFY_FROM_EMAIL"
     )
+    resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
 
     admin_emails: list[str] = Field(
         default_factory=lambda: [
