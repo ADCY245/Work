@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Create Account | PhysiHome{% endblock %}
+{% block title %}Doctor Verification | PhysiHome{% endblock %}
 {% block content %}
 <section class="auth-card card">
   <header class="auth-header">
-    <h1>Create your patient account</h1>
-    <p>We will send a one-time code to your email for verification.</p>
+    <h1>Doctor onboarding</h1>
+    <p>Share your details, upload your documents, and verify your email with an OTP.</p>
   </header>
 
   {% if error %}
   <div class="alert error">{{ error }}</div>
   {% endif %}
 
-  <form class="stack" method="post" action="/api/auth/signup">
+  <form class="stack" method="post" action="/api/auth/doctor-signup" enctype="multipart/form-data">
     <div class="form-grid two-col">
       <label>
         First name
@@ -36,7 +36,7 @@
 
     <label>
       Email address
-      <input type="email" name="email" placeholder="you@family.in" required />
+      <input type="email" name="email" placeholder="you@clinic.in" required />
     </label>
 
     <label>
@@ -44,13 +44,26 @@
       <input type="password" name="password" placeholder="Create a strong password" required />
     </label>
 
+    <div class="form-grid two-col">
+      <label>
+        Your photo (mandatory)
+        <input type="file" name="self_photo" accept="image/*" required />
+      </label>
+      <label>
+        Degree certificate (mandatory)
+        <input type="file" name="degree_photo" accept="image/*,.pdf" required />
+      </label>
+    </div>
+
+    <p class="helper">Documents are sent to our admin team for verification.</p>
+
     <button class="btn primary" type="submit">Send OTP</button>
   </form>
 
   <div class="auth-links">
     <p class="small">
-      Are you a doctor?
-      <a href="/doctor-signup">Go to doctor verification</a>
+      Not a doctor?
+      <a href="/signup">Create a patient account</a>
     </p>
     <p class="small">
       Already with us?

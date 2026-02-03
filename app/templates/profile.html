@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Profile | PhysiHome{% endblock %}
+{% block content %}
+<section class="profile-card card" data-pending-verification="{{ 'true' if pending_verification else 'false' }}">
+  <header class="auth-header">
+    <h1>Profile</h1>
+    <p>Review your saved details.</p>
+  </header>
+
+  <div class="profile-grid">
+    <div>
+      <p class="label">Full name</p>
+      <p>{{ profile.name }}</p>
+    </div>
+    <div>
+      <p class="label">Email</p>
+      <p>{{ profile.email }}</p>
+    </div>
+    <div>
+      <p class="label">Contact</p>
+      <p>{{ profile.contact }}</p>
+    </div>
+    <div>
+      <p class="label">Date of birth</p>
+      <p>{{ profile.dob }}</p>
+    </div>
+    <div>
+      <p class="label">Role</p>
+      <p>{{ profile.role }}</p>
+    </div>
+    {% if profile.doctor_verification_status %}
+    <div>
+      <p class="label">Doctor verification</p>
+      <p>{{ profile.doctor_verification_status }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if self_photo_url or degree_photo_url %}
+  <div class="profile-docs">
+    <h2>Uploaded documents</h2>
+    <div class="doc-grid">
+      {% if self_photo_url %}
+      <figure class="doc-card">
+        <img src="{{ self_photo_url }}" alt="Self photo" />
+        <figcaption>Self photo</figcaption>
+      </figure>
+      {% endif %}
+      {% if degree_photo_url %}
+      <figure class="doc-card">
+        <img src="{{ degree_photo_url }}" alt="Degree document" />
+        <figcaption>Degree certificate</figcaption>
+      </figure>
+      {% endif %}
+    </div>
+  </div>
+  {% endif %}
+
+  <dialog id="pendingVerificationDialog" class="modal">
+    <div class="modal-body">
+      <h2>Verification in progress</h2>
+      <p>Your profile verification will be completed within 12 hours. Thank you.</p>
+      <form method="dialog">
+        <button class="btn primary" type="submit">Got it</button>
+      </form>
+    </div>
+  </dialog>
+</section>
+{% endblock %}

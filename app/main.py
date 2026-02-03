@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from .core.config import get_settings
-from .routers import web
+from .routers import auth, web
 
 settings = get_settings()
 
@@ -23,6 +23,7 @@ static_dir = Path(__file__).parent / "static"
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 app.include_router(web.router)
+app.include_router(auth.router)
 
 
 @app.get("/health", tags=["health"])

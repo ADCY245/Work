@@ -1,0 +1,331 @@
+from __future__ import annotations
+
+from datetime import timedelta
+from pathlib import Path
+from typing import Any
+
+from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from starlette.concurrency import run_in_threadpool
+
+from app.core.config import get_settings
+from app.db import get_database
+from app.routers.web import base_context
+from app.services.auth_utils import (
+    create_session_token,
+    generate_otp,
+    hash_otp,
+    hash_password,
+    utcnow,
+    verify_otp,
+    verify_password,
+)
+from app.services.emailer import send_email
+
+settings = get_settings()
+
+router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
+async def _file_to_payload(upload: UploadFile) -> dict[str, Any]:
+    content = await upload.read()
+    return {
+        "filename": upload.filename or "upload",
+        "content_type": upload.content_type or "application/octet-stream",
+        "data": content,
+    }
+
+
+async def _send_otp_email(email: str, otp: str) -> str | None:
+    subject = "Your PhysiHome verification code"
+    body = f"Your OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
+    try:
+        await run_in_threadpool(send_email, subject, body, [email])
+        return None
+    except Exception as exc:  # pragma: no cover - surface in UI
+        return str(exc)
+
+
+async def _send_doctor_documents_email(email: str, attachments: list[tuple[str, bytes, str]]) -> str | None:
+    subject = "New doctor verification documents"
+    body = (
+        "A doctor completed OTP onboarding. Please review the attached documents.\n"
+        f"Doctor email: {email}\n"
+    )
+    try:
+        await run_in_threadpool(send_email, subject, body, settings.admin_emails, attachments)
+        return None
+    except Exception as exc:  # pragma: no cover - surface in UI
+        return str(exc)
+
+
+@router.post("/signup", response_class=HTMLResponse)
+async def signup(
+    request: Request,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    dob: str = Form(...),
+    phone: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+):
+    db = get_database()
+    normalized_email = _normalize_email(email)
+
+    existing = await db.users.find_one({"email": normalized_email})
+    if existing:
+        return templates.TemplateResponse(
+            "auth/signup.html",
+            base_context(request, error="An account with this email already exists."),
+            status_code=400,
+        )
+
+    otp = generate_otp(settings.otp_length)
+    otp_hash = hash_otp(otp, settings.secret_key)
+    now = utcnow()
+
+    user_doc = {
+        "first_name": first_name.strip(),
+        "last_name": last_name.strip(),
+        "dob": dob,
+        "phone": phone.strip(),
+        "email": normalized_email,
+        "password_hash": hash_password(password),
+        "role": "user",
+        "is_admin": normalized_email in settings.admin_emails,
+        "is_otp_verified": False,
+        "otp_hash": otp_hash,
+        "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
+        "doctor_verification_status": None,
+        "has_logged_in": False,
+        "created_at": now,
+    }
+
+    await db.users.insert_one(user_doc)
+    email_error = await _send_otp_email(normalized_email, otp)
+
+    return templates.TemplateResponse(
+        "auth/verify_otp.html",
+        base_context(
+            request,
+            email=normalized_email,
+            role="user",
+            email_error=email_error,
+        ),
+    )
+
+
+@router.post("/doctor-signup", response_class=HTMLResponse)
+async def doctor_signup(
+    request: Request,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    dob: str = Form(...),
+    phone: str = Form(...),
+    email: str = Form(...),
+    password: str = Form(...),
+    self_photo: UploadFile = File(...),
+    degree_photo: UploadFile = File(...),
+):
+    db = get_database()
+    normalized_email = _normalize_email(email)
+
+    existing = await db.users.find_one({"email": normalized_email})
+    if existing:
+        return templates.TemplateResponse(
+            "auth/doctor_signup.html",
+            base_context(request, error="An account with this email already exists."),
+            status_code=400,
+        )
+
+    otp = generate_otp(settings.otp_length)
+    otp_hash = hash_otp(otp, settings.secret_key)
+    now = utcnow()
+
+    self_payload = await _file_to_payload(self_photo)
+    degree_payload = await _file_to_payload(degree_photo)
+
+    user_doc = {
+        "first_name": first_name.strip(),
+        "last_name": last_name.strip(),
+        "dob": dob,
+        "phone": phone.strip(),
+        "email": normalized_email,
+        "password_hash": hash_password(password),
+        "role": "doctor",
+        "is_admin": normalized_email in settings.admin_emails,
+        "is_otp_verified": False,
+        "otp_hash": otp_hash,
+        "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
+        "doctor_verification_status": "pending",
+        "has_logged_in": False,
+        "documents": {
+            "self_photo": self_payload,
+            "degree_photo": degree_payload,
+        },
+        "created_at": now,
+    }
+
+    await db.users.insert_one(user_doc)
+
+    email_error = await _send_otp_email(normalized_email, otp)
+
+    attachments = [
+        (self_payload["filename"], self_payload["data"], self_payload["content_type"]),
+        (degree_payload["filename"], degree_payload["data"], degree_payload["content_type"]),
+    ]
+    admin_email_error = await _send_doctor_documents_email(normalized_email, attachments)
+
+    return templates.TemplateResponse(
+        "auth/verify_otp.html",
+        base_context(
+            request,
+            email=normalized_email,
+            role="doctor",
+            email_error=email_error,
+            admin_email_error=admin_email_error,
+        ),
+    )
+
+
+@router.post("/verify-otp", response_class=HTMLResponse)
+async def verify_otp_handler(
+    request: Request,
+    email: str = Form(...),
+    otp: str = Form(...),
+):
+    db = get_database()
+    normalized_email = _normalize_email(email)
+    user = await db.users.find_one({"email": normalized_email})
+    if not user:
+        return templates.TemplateResponse(
+            "auth/verify_otp.html",
+            base_context(request, error="Account not found. Please sign up again."),
+            status_code=404,
+        )
+
+    role = user.get("role")
+    otp_hash = user.get("otp_hash")
+    otp_expires_at = user.get("otp_expires_at")
+
+    if not otp_hash or not otp_expires_at:
+        return templates.TemplateResponse(
+            "auth/verify_otp.html",
+            base_context(
+                request,
+                email=normalized_email,
+                role=role,
+                error="OTP not found. Please request a new one.",
+            ),
+            status_code=400,
+        )
+
+    if utcnow() > otp_expires_at:
+        return templates.TemplateResponse(
+            "auth/verify_otp.html",
+            base_context(
+                request,
+                email=normalized_email,
+                role=role,
+                error="OTP expired. Please sign up again.",
+            ),
+            status_code=400,
+        )
+
+    if not verify_otp(otp.strip(), otp_hash, settings.secret_key):
+        return templates.TemplateResponse(
+            "auth/verify_otp.html",
+            base_context(
+                request,
+                email=normalized_email,
+                role=role,
+                error="Incorrect OTP. Try again.",
+            ),
+            status_code=400,
+        )
+
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {"is_otp_verified": True, "has_logged_in": True},
+            "$unset": {"otp_hash": "", "otp_expires_at": ""},
+        },
+    )
+
+    session_token = create_session_token(
+        {"user_id": str(user["_id"]), "email": normalized_email},
+        settings.secret_key,
+    )
+
+    redirect_target = "/profile"
+    if user.get("role") == "doctor":
+        redirect_target = "/profile?pending_verification=1"
+
+    response = RedirectResponse(url=redirect_target, status_code=303)
+    response.set_cookie(
+        settings.session_cookie_name,
+        session_token,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@router.post("/login")
+async def login_handler(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+):
+    db = get_database()
+    normalized_email = _normalize_email(email)
+    user = await db.users.find_one({"email": normalized_email})
+
+    if not user or not verify_password(password, user.get("password_hash", "")):
+        return templates.TemplateResponse(
+            "auth/login.html",
+            base_context(request, error="Invalid email or password."),
+            status_code=400,
+        )
+
+    if not user.get("is_otp_verified"):
+        return templates.TemplateResponse(
+            "auth/login.html",
+            base_context(request, error="Please complete OTP verification before logging in."),
+            status_code=400,
+        )
+
+    await db.users.update_one({"_id": user["_id"]}, {"$set": {"has_logged_in": True}})
+
+    session_token = create_session_token(
+        {"user_id": str(user["_id"]), "email": normalized_email},
+        settings.secret_key,
+    )
+
+    redirect_target = "/profile"
+    if user.get("role") == "doctor" and user.get("doctor_verification_status") != "verified":
+        redirect_target = "/profile?pending_verification=1"
+
+    response = RedirectResponse(url=redirect_target, status_code=303)
+    response.set_cookie(
+        settings.session_cookie_name,
+        session_token,
+        httponly=True,
+        samesite="lax",
+    )
+    return response
+
+
+@router.post("/logout")
+async def logout_handler():
+    response = RedirectResponse(url="/", status_code=303)
+    response.delete_cookie(settings.session_cookie_name)
+    return response

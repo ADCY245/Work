@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Login | PhysiHome{% endblock %}
 {% block content %}
-<section class="auth-card card">
+<section class="auth-card card" data-pending-verification="{{ 'true' if pending_verification else 'false' }}">
   <h1>Welcome back</h1>
   <p>Login to continue booking home visits and chatting securely with doctors.</p>
+
+  {% if error %}
+  <div class="alert error">{{ error }}</div>
+  {% endif %}
+
   <form class="stack" method="post" action="/api/auth/login">
     <label>
       Email address
@@ -15,9 +20,26 @@
     </label>
     <button class="btn primary" type="submit">Sign in</button>
   </form>
-  <p class="small">
-    No account?
-    <a href="/signup">Create one</a>
-  </p>
+
+  <div class="auth-links">
+    <p class="small">
+      No account?
+      <a href="/signup">Create one</a>
+    </p>
+    <p class="small">
+      Doctor onboarding?
+      <a href="/doctor-signup">Start verification</a>
+    </p>
+  </div>
+
+  <dialog id="pendingVerificationDialog" class="modal">
+    <div class="modal-body">
+      <h2>Verification in progress</h2>
+      <p>Your profile verification will be completed within 12 hours. Thank you.</p>
+      <form method="dialog">
+        <button class="btn primary" type="submit">Got it</button>
+      </form>
+    </div>
+  </dialog>
 </section>
 {% endblock %}
