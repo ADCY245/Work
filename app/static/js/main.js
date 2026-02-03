@@ -1,4 +1,12 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const profileCard = document.querySelector(".profile-card");
+  if (profileCard?.dataset.pendingVerification === "true") {
+    const dialog = document.getElementById("pendingVerificationDialog");
+    if (dialog && typeof dialog.showModal === "function") {
+      dialog.showModal();
+    }
+  }
+
   const profileMenus = document.querySelectorAll(".profile-menu");
 
   profileMenus.forEach((menu) => {

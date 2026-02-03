@@ -7,6 +7,12 @@
     <p>Review your saved details.</p>
   </header>
 
+  {% if profile.pending_verification %}
+  <div class="alert warn">
+    Your doctor verification is pending. We will complete it within 12 hours. Thank you.
+  </div>
+  {% endif %}
+
   <div class="profile-grid">
     <div>
       <p class="label">Full name</p>

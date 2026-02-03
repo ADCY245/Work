@@ -1,91 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Admin Dashboard | PhysiHome{% endblock %}
 {% block content %}
-<section class="dashboard">
+<section class="admin-dashboard">
   <header class="auth-header">
-    <h1>Admin dashboard</h1>
-    <p>Review users, doctors, and pending verifications.</p>
+    <h1>Admin Dashboard</h1>
+    <p>Manage users and doctor verifications</p>
   </header>
 
-  <div class="dashboard-section">
-    <h2>Users</h2>
-    {% if users and users|length > 0 %}
-    <div class="dashboard-grid">
-      {% for user in users %}
-      <article class="card">
-        <h3>{{ user.name or "Unnamed" }}</h3>
-        <p class="muted">{{ user.role }}</p>
-        <p>{{ user.email }}</p>
-        <p>{{ user.phone }}</p>
-        {% if user.doctor_verification_status %}
-        <p class="badge">{{ user.doctor_verification_status }}</p>
-        {% endif %}
-        {% if user.self_photo_url or user.degree_photo_url %}
-        <div class="doc-preview">
-          {% if user.self_photo_url %}
-          <img src="{{ user.self_photo_url }}" alt="Self photo" />
-          {% endif %}
-          {% if user.degree_photo_url %}
-          <img src="{{ user.degree_photo_url }}" alt="Degree photo" />
-          {% endif %}
-        </div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="users">Users</button>
+    <button class="tab-btn" data-tab="doctors">Verified Doctors</button>
+    <button class="tab-btn" data-tab="pending">Pending Verification</button>
+  </div>
+
+  <div id="users" class="tab-content active">
+    <h2>All Users</h2>
+    <div class="card-list">
+      {% for u in users %}
+      <article class="card user-card">
+        <h3>{{ u.name }}</h3>
+        <p>Email: {{ u.email }}</p>
+        <p>Role: {{ u.role }}</p>
+        {% if u.doctor_verification_status %}
+        <p>Status: {{ u.doctor_verification_status }}</p>
         {% endif %}
       </article>
       {% endfor %}
     </div>
-    {% else %}
-    <p class="muted">No users found.</p>
-    {% endif %}
   </div>
 
-  <div class="dashboard-section">
-    <h2>Doctors (verified)</h2>
-    {% if doctors and doctors|length > 0 %}
-    <div class="dashboard-grid">
-      {% for doctor in doctors %}
-      <article class="card">
-        <h3>{{ doctor.name or "Unnamed" }}</h3>
-        <p class="muted">Verified doctor</p>
-        <p>{{ doctor.email }}</p>
-        <p>{{ doctor.phone }}</p>
-        {% if doctor.self_photo_url or doctor.degree_photo_url %}
-        <div class="doc-preview">
-          {% if doctor.self_photo_url %}
-          <img src="{{ doctor.self_photo_url }}" alt="Self photo" />
-          {% endif %}
-          {% if doctor.degree_photo_url %}
-          <img src="{{ doctor.degree_photo_url }}" alt="Degree photo" />
-          {% endif %}
-        </div>
-        {% endif %}
-      </article>
-      {% endfor %}
-    </div>
-    {% else %}
-    <p class="muted">No verified doctors yet.</p>
-    {% endif %}
-  </div>
-
-  <div class="dashboard-section">
-    <h2>Pending verification</h2>
-    {% if pending and pending|length > 0 %}
-    <div class="dashboard-grid">
-      {% for doctor in pending %}
-      <article class="card">
-        <h3>{{ doctor.name or "Unnamed" }}</h3>
-        <p class="muted">Pending verification</p>
-        <p>{{ doctor.email }}</p>
-        <p>{{ doctor.phone }}</p>
-        {% if doctor.self_photo_url or doctor.degree_photo_url %}
-        <div class="doc-preview">
-          {% if doctor.self_photo_url %}
-          <img src="{{ doctor.self_photo_url }}" alt="Self photo" />
-          {% endif %}
-          {% if doctor.degree_photo_url %}
-          <img src="{{ doctor.degree_photo_url }}" alt="Degree photo" />
-          {% endif %}
-        </div>
-        {% endif %}
+  <div id="doctors" class="tab-content">
+    <h2>Verified Doctors</h2>
+    <div class="card-list">
+      {% for d in doctors %}
+      <article class="card user-card">
+        <h3>{{ d.name }}</h3>
+        <p>Email: {{ d.email }}</p>
+        <p>Specialization: {{ d.specialization }}</p>
       </article>
       {% endfor %}
     </div>

@@ -329,3 +329,31 @@ async def logout_handler():
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie(settings.session_cookie_name)
     return response
+
+
+@router.post("/admin/approve-doctor")
+async def approve_doctor(request: Request, payload: dict[str, str]):
+    user = await get_user_from_request(request)
+    if not user or not user.get("is_admin"):
+        return {"error": "Unauthorized"}, 403
+    db = get_database()
+    user_id = payload.get("user_id")
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"doctor_verification_status": "verified"}}
+    )
+    return {"status": "approved"}
+
+
+@router.post("/admin/reject-doctor")
+async def reject_doctor(request: Request, payload: dict[str, str]):
+    user = await get_user_from_request(request)
+    if not user or not user.get("is_admin"):
+        return {"error": "Unauthorized"}, 403
+    db = get_database()
+    user_id = payload.get("user_id")
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)},
+        {"$set": {"doctor_verification_status": "rejected"}}
+    )
+    return {"status": "rejected"}
