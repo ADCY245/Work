@@ -15,11 +15,23 @@
     <div class="form-grid two-col">
       <label>
         First name
-        <input type="text" name="first_name" placeholder="Your first name" required />
+        <input
+          type="text"
+          name="first_name"
+          placeholder="Your first name"
+          autocomplete="given-name"
+          required
+        />
       </label>
       <label>
         Last name
-        <input type="text" name="last_name" placeholder="Your last name" required />
+        <input
+          type="text"
+          name="last_name"
+          placeholder="Your last name"
+          autocomplete="family-name"
+          required
+        />
       </label>
     </div>
 
@@ -30,6 +42,7 @@
           <input 
             type="date" 
             name="dob_backup"
+            autocomplete="bday"
             required 
             pattern="\d{4}-\d{2}-\d{2}"
             title="YYYY-MM-DD format"
@@ -42,6 +55,7 @@
               aria-label="Type your date of birth as YYYY-MM-DD"
               data-dob-text
               name="dob"
+              autocomplete="bday"
             />
             <small class="helper">Type the date or use the picker.</small>
           </div>
@@ -49,14 +63,26 @@
       </label>
       <label>
         Contact number
-        <input type="tel" name="phone" placeholder="10-digit number" required />
+        <input
+          type="tel"
+          name="phone"
+          placeholder="10-digit number"
+          autocomplete="tel"
+          required
+        />
       </label>
     </div>
 
     <div class="form-grid two-col">
       <label>
         Email address
-        <input type="email" name="email" placeholder="you@family.in" required />
+        <input
+          type="email"
+          name="email"
+          placeholder="you@family.in"
+          autocomplete="email"
+          required
+        />
       </label>
       <label>
         Gender (optional)
@@ -71,7 +97,7 @@
 
     <label class="upload">
       Profile photo (optional)
-      <input type="file" name="profile_photo" accept="image/*" />
+      <input type="file" name="profile_photo" accept="image/*" autocomplete="off" />
     </label>
 
     <label>
@@ -80,6 +106,7 @@
         type="password"
         name="password"
         placeholder="Create a strong password"
+        autocomplete="new-password"
         required
         minlength="8"
         pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"

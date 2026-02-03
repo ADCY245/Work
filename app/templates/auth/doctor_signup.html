@@ -15,11 +15,23 @@
     <div class="form-grid two-col">
       <label>
         First name
-        <input type="text" name="first_name" placeholder="Your first name" required />
+        <input
+          type="text"
+          name="first_name"
+          placeholder="Your first name"
+          autocomplete="given-name"
+          required
+        />
       </label>
       <label>
         Last name
-        <input type="text" name="last_name" placeholder="Your last name" required />
+        <input
+          type="text"
+          name="last_name"
+          placeholder="Your last name"
+          autocomplete="family-name"
+          required
+        />
       </label>
     </div>
 
@@ -30,6 +42,7 @@
           <input 
             type="date" 
             name="dob_backup"
+            autocomplete="bday"
             required 
             pattern="\d{4}-\d{2}-\d{2}"
             title="YYYY-MM-DD format"
@@ -42,6 +55,7 @@
               aria-label="Type your date of birth as YYYY-MM-DD"
               data-dob-text
               name="dob"
+              autocomplete="bday"
             />
             <small class="helper">Type the date or use the picker.</small>
           </div>
@@ -49,14 +63,26 @@
       </label>
       <label>
         Contact number
-        <input type="tel" name="phone" placeholder="10-digit number" required />
+        <input
+          type="tel"
+          name="phone"
+          placeholder="10-digit number"
+          autocomplete="tel"
+          required
+        />
       </label>
     </div>
 
     <div class="form-grid two-col">
       <label>
         Email address
-        <input type="email" name="email" placeholder="you@clinic.in" required />
+        <input
+          type="email"
+          name="email"
+          placeholder="you@clinic.in"
+          autocomplete="email"
+          required
+        />
       </label>
       <label>
         Gender (optional)
@@ -75,29 +101,36 @@
         type="text"
         name="specialization"
         placeholder="e.g. Orthopedic Physiotherapy"
+        autocomplete="organization-title"
         required
       />
     </label>
 
     <label>
       Password
-      <input type="password" name="password" placeholder="Create a strong password" required />
+      <input
+        type="password"
+        name="password"
+        placeholder="Create a strong password"
+        autocomplete="new-password"
+        required
+      />
     </label>
 
     <div class="form-grid two-col">
       <label>
         Your photo (mandatory)
-        <input type="file" name="self_photo" accept="image/*" required />
+        <input type="file" name="self_photo" accept="image/*" autocomplete="off" required />
       </label>
       <label>
         Degree certificate (mandatory)
-        <input type="file" name="degree_photo" accept="image/*,.pdf" required />
+        <input type="file" name="degree_photo" accept="image/*,.pdf" autocomplete="off" required />
       </label>
     </div>
 
     <label class="upload">
       Visiting card (optional)
-      <input type="file" name="visiting_card" accept="image/*,.pdf" />
+      <input type="file" name="visiting_card" accept="image/*,.pdf" autocomplete="off" />
     </label>
 
     <p class="helper">Documents are sent to our admin team for verification.</p>

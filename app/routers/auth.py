@@ -93,6 +93,7 @@ async def signup(
 ):
     db = get_database()
     normalized_email = _normalize_email(email)
+    phone_clean = phone.strip()
 
     is_valid_password, password_error = validate_password_strength(password)
     if not is_valid_password:
@@ -104,15 +105,26 @@ async def signup(
 
     existing = await db.users.find_one({"email": normalized_email})
     pending = await db.pending_users.find_one({"email": normalized_email})
-    if existing or pending:
+    if pending:
         return templates.TemplateResponse(
             "auth/signup.html",
             base_context(request, error="An account with this email already exists."),
             status_code=400,
         )
 
-    existing_phone = await db.users.find_one({"phone": phone.strip()})
-    pending_phone = await db.pending_users.find_one({"phone": phone.strip()})
+    if existing and existing.get("is_otp_verified"):
+        return templates.TemplateResponse(
+            "auth/signup.html",
+            base_context(request, error="An account with this email already exists."),
+            status_code=400,
+        )
+
+    phone_filter: dict[str, Any] = {"phone": phone_clean}
+    if existing:
+        phone_filter["_id"] = {"$ne": existing["_id"]}
+    existing_phone = await db.users.find_one(phone_filter)
+
+    pending_phone = await db.pending_users.find_one({"phone": phone_clean})
     if existing_phone or pending_phone:
         return templates.TemplateResponse(
             "auth/signup.html",
@@ -125,27 +137,38 @@ async def signup(
     now = utcnow()
 
     profile_photo_payload = await _file_to_payload(profile_photo)
+    otp_expires_at = now + timedelta(minutes=settings.otp_expiry_minutes)
 
-    user_doc = {
+    base_fields = {
         "first_name": first_name.strip(),
         "last_name": last_name.strip(),
         "dob": dob,
-        "phone": phone.strip(),
-        "email": normalized_email,
+        "phone": phone_clean,
         "password_hash": hash_password(password),
         "role": "user",
         "is_admin": normalized_email in settings.admin_emails,
         "gender": _normalize_gender(gender),
-        "profile_photo": profile_photo_payload,
         "is_otp_verified": False,
         "doctor_verification_status": None,
         "has_logged_in": False,
         "otp_hash": otp_hash,
-        "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
+        "otp_expires_at": otp_expires_at,
+    }
+
+    user_doc = {
+        **base_fields,
+        "email": normalized_email,
+        "profile_photo": profile_photo_payload,
         "created_at": now,
     }
 
-    await db.users.insert_one(user_doc)
+    if existing:
+        update_fields = dict(base_fields)
+        if profile_photo_payload is not None:
+            update_fields["profile_photo"] = profile_photo_payload
+        await db.users.update_one({"_id": existing["_id"]}, {"$set": update_fields})
+    else:
+        await db.users.insert_one(user_doc)
     email_error = await _send_otp_email(normalized_email, otp)
     otp_debug = otp if email_error else None
 
@@ -189,15 +212,18 @@ async def doctor_signup(
 
     existing = await db.users.find_one({"email": normalized_email})
     pending = await db.pending_users.find_one({"email": normalized_email})
-    if existing or pending:
+    if existing:
         return templates.TemplateResponse(
             "auth/doctor_signup.html",
             base_context(request, error="An account with this email already exists."),
             status_code=400,
         )
 
-    existing_phone = await db.users.find_one({"phone": phone.strip()})
-    pending_phone = await db.pending_users.find_one({"phone": phone.strip()})
+    existing_phone = await db.users.find_one({"phone": phone_clean})
+    pending_phone_filter: dict[str, Any] = {"phone": phone_clean}
+    if pending:
+        pending_phone_filter["_id"] = {"$ne": pending["_id"]}
+    pending_phone = await db.pending_users.find_one(pending_phone_filter)
     if existing_phone or pending_phone:
         return templates.TemplateResponse(
             "auth/doctor_signup.html",
@@ -225,7 +251,7 @@ async def doctor_signup(
         "first_name": first_name.strip(),
         "last_name": last_name.strip(),
         "dob": dob,
-        "phone": phone.strip(),
+        "phone": phone_clean,
         "email": normalized_email,
         "password_hash": hash_password(password),
         "role": "doctor",
@@ -244,7 +270,10 @@ async def doctor_signup(
         "created_at": now,
     }
 
-    await db.pending_users.insert_one(pending_user_doc)
+    if pending:
+        await db.pending_users.update_one({"_id": pending["_id"]}, {"$set": pending_user_doc})
+    else:
+        await db.pending_users.insert_one(pending_user_doc)
 
     email_error = await _send_otp_email(normalized_email, otp)
     otp_debug = otp if email_error else None
