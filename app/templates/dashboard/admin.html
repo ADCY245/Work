@@ -1,19 +1,19 @@
 {% extends "base.html" %}
 {% block title %}Admin Dashboard | PhysiHome{% endblock %}
 {% block content %}
-<section class="admin-dashboard">
+<section class="admin-dashboard" data-admin-dashboard>
   <header class="auth-header">
     <h1>Admin Dashboard</h1>
     <p>Manage users and doctor verifications</p>
   </header>
 
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="users">Users</button>
-    <button class="tab-btn" data-tab="doctors">Verified Doctors</button>
-    <button class="tab-btn" data-tab="pending">Pending Verification</button>
+  <div class="tabs" data-tab-group>
+    <button class="tab-btn active" type="button" data-tab-target="users">Users</button>
+    <button class="tab-btn" type="button" data-tab-target="doctors">Verified Doctors</button>
+    <button class="tab-btn" type="button" data-tab-target="pending">Pending Verification</button>
   </div>
 
-  <div id="users" class="tab-content active">
+  <div id="users" class="tab-content active" data-tab-panel="users">
     <h2>All Users</h2>
     <div class="card-list">
       {% for u in users %}
@@ -34,10 +34,13 @@
         {% endif %}
       </article>
       {% endfor %}
+      {% if users|length == 0 %}
+      <p class="muted">No users yet.</p>
+      {% endif %}
     </div>
   </div>
 
-  <div id="doctors" class="tab-content">
+  <div id="doctors" class="tab-content" data-tab-panel="doctors">
     <h2>Verified Doctors</h2>
     <div class="card-list">
       {% for d in doctors %}
@@ -52,10 +55,13 @@
         <p>Specialization: {{ d.specialization or 'General' }}</p>
       </article>
       {% endfor %}
+      {% if doctors|length == 0 %}
+      <p class="muted">No verified doctors yet.</p>
+      {% endif %}
     </div>
   </div>
 
-  <div id="pending" class="tab-content">
+  <div id="pending" class="tab-content" data-tab-panel="pending">
     <h2>Pending Verification</h2>
     <div class="card-list">
       {% for p in pending %}
@@ -94,6 +100,9 @@
         </div>
       </article>
       {% endfor %}
+      {% if pending|length == 0 %}
+      <p class="muted">No pending requests.</p>
+      {% endif %}
     </div>
   </div>
 </section>

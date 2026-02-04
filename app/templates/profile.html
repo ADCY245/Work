@@ -7,7 +7,6 @@
       <img src="{{ profile_avatar_url }}" alt="Profile avatar" />
     </div>
     <h1>{{ profile.name }}</h1>
-    <p>Role: {{ profile.role }}</p>
     {% if profile.gender %}
     <span class="badge">{{ profile.gender|title }}</span>
     {% endif %}
@@ -31,10 +30,6 @@
     <div>
       <p class="label">Date of birth</p>
       <p>{{ profile.dob }}</p>
-    </div>
-    <div>
-      <p class="label">Role</p>
-      <p>{{ profile.role|title }}</p>
     </div>
     {% if profile.specialization %}
     <div>

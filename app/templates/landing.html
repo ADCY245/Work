@@ -12,7 +12,9 @@
     </p>
     <div class="hero-cta">
       <a class="btn primary" href="/doctors">Find a home-visit doctor</a>
+      {% if not is_authenticated %}
       <a class="btn ghost" href="/signup">Create patient account</a>
+      {% endif %}
     </div>
   </div>
   <div class="hero-visual">
@@ -45,6 +47,7 @@
   </article>
 </section>
 
+{% if not is_authenticated %}
 <section class="how-it-works">
   <header>
     <p class="eyebrow">Built for seamless care</p>
@@ -73,7 +76,9 @@
     </li>
   </ol>
 </section>
+{% endif %}
 
+{% if not is_authenticated %}
 <section class="cta-banner">
   <div>
     <h2>Ready to bring expert care home?</h2>
@@ -84,4 +89,16 @@
     <a class="btn secondary" href="/contact">Talk to our team</a>
   </div>
 </section>
+{% else %}
+<section class="cta-banner">
+  <div>
+    <h2>You're all set.</h2>
+    <p>Access your messages, manage appointments, or update your profile anytime.</p>
+  </div>
+  <div>
+    <a class="btn primary" href="/profile">Go to your profile</a>
+    <a class="btn secondary" href="/messages">Open messages</a>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

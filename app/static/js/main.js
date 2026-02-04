@@ -122,4 +122,32 @@ document.addEventListener("DOMContentLoaded", () => {
       window.location.href = "/";
     });
   });
+
+  const initAdminTabs = () => {
+    document.querySelectorAll("[data-tab-group]").forEach((group) => {
+      const buttons = group.querySelectorAll("[data-tab-target]");
+      const dashboard = group.closest("[data-admin-dashboard]") || document;
+      const panels = dashboard.querySelectorAll("[data-tab-panel]");
+
+      const activateTab = (target) => {
+        buttons.forEach((btn) => {
+          btn.classList.toggle("active", btn.dataset.tabTarget === target);
+        });
+        panels.forEach((panel) => {
+          panel.classList.toggle("active", panel.dataset.tabPanel === target);
+        });
+      };
+
+      buttons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.dataset.tabTarget;
+          if (target) {
+            activateTab(target);
+          }
+        });
+      });
+    });
+  };
+
+  initAdminTabs();
 });

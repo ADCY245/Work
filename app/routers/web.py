@@ -187,8 +187,10 @@ async def messages(request: Request):
 @router.get("/admin", response_class=HTMLResponse)
 async def admin_dashboard(request: Request):
     user = await get_user_from_request(request)
-    if not user or not user.get("is_admin"):
+    if not user:
         return RedirectResponse(url="/login", status_code=303)
+    if not user.get("is_admin"):
+        return RedirectResponse(url="/profile", status_code=303)
 
     db = get_database()
     users = await db.users.find().to_list(length=200)
