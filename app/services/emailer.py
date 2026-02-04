@@ -5,7 +5,7 @@ import smtplib
 from email.message import EmailMessage
 from typing import Iterable
 
-from resend import Resend
+import resend
 
 from app.core.config import get_settings
 
@@ -21,7 +21,7 @@ def _send_with_resend(
     if not settings.resend_api_key:
         raise RuntimeError("Resend API key is not configured")
 
-    client = Resend(api_key=settings.resend_api_key)
+    resend.api_key = settings.resend_api_key
 
     payload: dict[str, object] = {
         "from": settings.notifications_from_email,
@@ -39,7 +39,7 @@ def _send_with_resend(
             for filename, data, _ in attachments
         ]
 
-    client.emails.send(payload)
+    resend.Emails.send(payload)
 
 
 def _send_with_smtp(
