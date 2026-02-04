@@ -5,7 +5,7 @@ import smtplib
 from email.message import EmailMessage
 from typing import Iterable
 
-import resend
+from resend import Resend
 
 from app.core.config import get_settings
 
@@ -21,7 +21,7 @@ def _send_with_resend(
     if not settings.resend_api_key:
         raise RuntimeError("Resend API key is not configured")
 
-    resend.api_key = settings.resend_api_key
+    client = Resend(api_key=settings.resend_api_key)
 
     payload: dict[str, object] = {
         "from": settings.notifications_from_email,
@@ -39,7 +39,7 @@ def _send_with_resend(
             for filename, data, _ in attachments
         ]
 
-    resend.Emails.send(payload)
+    client.emails.send(payload)
 
 
 def _send_with_smtp(
@@ -92,14 +92,12 @@ def send_email(
         try:
             _send_with_resend(subject, body, to_emails, attachments)
             return
-        except Exception as exc:  # pragma: no cover - want visibility in UI
-            last_error = exc
+        except Exception as exc:
+            # If Resend is configured but fails (e.g. domain not verified), surface that error
+            raise exc
 
-    try:
-        _send_with_smtp(subject, body, to_emails, attachments)
-        return
-    except Exception as exc:  # pragma: no cover - want visibility in UI
-        last_error = exc
+    # Fall back to SMTP only when Resend is not configured
+    _send_with_smtp(subject, body, to_emails, attachments)
 
     if last_error:
         raise last_error
