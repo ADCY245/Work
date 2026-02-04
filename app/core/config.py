@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -34,18 +34,25 @@ class Settings(BaseSettings):
     smtp_username: str | None = Field(default=None, alias="SMTP_USERNAME")
     smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
     smtp_use_tls: bool = Field(default=True, alias="SMTP_USE_TLS")
-    notifications_from_email: str = Field(
-        default="no-reply@physihome.com", alias="NOTIFY_FROM_EMAIL"
+    notifications_from_email: str | None = Field(
+        default=None, alias="NOTIFY_FROM_EMAIL"
     )
+    email_from_fallback: str | None = Field(default=None, alias="EMAIL_FROM")
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
 
     admin_emails: list[str] = Field(
         default_factory=lambda: [
-            "info@physihome.com",
+            "info@physihome.shop",
             "athulnair3096@gmail.com",
         ],
         alias="ADMIN_EMAILS",
     )
+
+    @model_validator(mode="after")
+    def _ensure_notification_email(self):
+        if not self.notifications_from_email:
+            self.notifications_from_email = self.email_from_fallback or "info@physihome.shop"
+        return self
 
     class Config:
         env_file = ".env"
