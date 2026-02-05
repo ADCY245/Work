@@ -1,6 +1,36 @@
 {% extends "base.html" %}
 {% block title %}PhysiHome | Home Visit Doctors{% endblock %}
 {% block content %}
+{% if is_authenticated %}
+<section class="logged-in-hero">
+  <div class="hero-images">
+    <div class="hero-tile large" style="background-image: url('/static/img/hero-1.jpg')"></div>
+    <div class="hero-tile" style="background-image: url('/static/img/hero-2.jpg')"></div>
+    <div class="hero-tile" style="background-image: url('/static/img/hero-3.jpg')"></div>
+  </div>
+  <div class="hero-copy">
+    {% if current_user %}
+    <p class="eyebrow">Welcome back, {{ current_user.first_name }}</p>
+    {% endif %}
+    <h1>Rejuvenate your health</h1>
+    <p class="tagline">Find physiotherapists for home visits or online practice.</p>
+    <form class="search-bar" action="/doctors" method="get">
+      <input
+        type="text"
+        name="q"
+        placeholder="Search by condition, injury, or city"
+        aria-label="Search physiotherapists"
+      />
+      <button class="btn primary" type="submit">Search</button>
+    </form>
+    {% if current_user and current_user.role == 'doctor' %}
+    <p class="doctor-note">Interact with your patients, share exercise plans, and keep every follow-up in one place.</p>
+    {% else %}
+    <p class="doctor-note">Stay consistent with guided programs crafted just for you.</p>
+    {% endif %}
+  </div>
+</section>
+{% else %}
 <section class="hero">
   <div class="hero-text">
     <p class="eyebrow">Trusted doctors • Home comfort • Secure messaging</p>
@@ -12,9 +42,7 @@
     </p>
     <div class="hero-cta">
       <a class="btn primary" href="/doctors">Find a home-visit doctor</a>
-      {% if not is_authenticated %}
       <a class="btn ghost" href="/signup">Create patient account</a>
-      {% endif %}
     </div>
   </div>
   <div class="hero-visual">
@@ -31,6 +59,7 @@
     <div class="floating-message doctor">“Daily progress looks great—see you tomorrow.”</div>
   </div>
 </section>
+{% endif %}
 
 <section class="pillars">
   <article>
