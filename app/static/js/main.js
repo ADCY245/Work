@@ -2,11 +2,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const initDobFields = () => {
     const wrappers = document.querySelectorAll("[data-dob-field]");
 
-    const isValidDate = (value) => {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        return false;
+    const formatDobInput = (value) => {
+      const digits = value.replace(/\D/g, "").slice(0, 8);
+      const segments = [];
+      if (digits.length > 0) {
+        segments.push(digits.slice(0, Math.min(2, digits.length)));
       }
-      const [year, month, day] = value.split("-").map(Number);
+      if (digits.length >= 3) {
+        segments.push(digits.slice(2, Math.min(4, digits.length)));
+      } else if (digits.length > 2) {
+        segments.push(digits.slice(2));
+      }
+      if (digits.length >= 5) {
+        segments.push(digits.slice(4));
+      }
+      return segments.join("-");
+    };
+
+    const displayToIso = (value) => {
+      const match = value.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+      if (!match) return null;
+      const [, day, month, year] = match;
+      return `${year}-${month}-${day}`;
+    };
+
+    const isoToDisplay = (value) => {
+      const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!match) return "";
+      const [, year, month, day] = match;
+      return `${day}-${month}-${year}`;
+    };
+
+    const isValidDisplayDate = (value) => {
+      const iso = displayToIso(value);
+      if (!iso) return false;
+      const [year, month, day] = iso.split("-").map(Number);
       const date = new Date(Date.UTC(year, month - 1, day));
       return (
         date.getUTCFullYear() === year &&
@@ -18,12 +48,16 @@ document.addEventListener("DOMContentLoaded", () => {
     wrappers.forEach((wrapper) => {
       const dateInput = wrapper.querySelector('input[type="date"]');
       const textInput = wrapper.querySelector("[data-dob-text]");
-      if (!dateInput || !textInput) return;
+      const hiddenInput = wrapper.querySelector("[data-dob-hidden]");
+      if (!dateInput || !textInput || !hiddenInput) return;
 
       const syncText = () => {
         if (dateInput.value) {
-          textInput.value = dateInput.value;
+          textInput.value = isoToDisplay(dateInput.value);
+          hiddenInput.value = dateInput.value;
           wrapper.classList.add("filled");
+        } else {
+          hiddenInput.value = "";
         }
       };
 
@@ -33,25 +67,36 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       textInput.addEventListener("input", () => {
-        const value = textInput.value.trim();
-        if (!value) {
+        const formatted = formatDobInput(textInput.value);
+        textInput.value = formatted;
+        if (!formatted) {
           dateInput.value = "";
+          hiddenInput.value = "";
           textInput.setCustomValidity("");
           wrapper.classList.remove("filled");
           return;
         }
-        if (isValidDate(value)) {
-          dateInput.value = value;
+        if (formatted.length === 10 && isValidDisplayDate(formatted)) {
+          const iso = displayToIso(formatted);
+          dateInput.value = iso;
+          hiddenInput.value = iso;
           textInput.setCustomValidity("");
           wrapper.classList.add("filled");
+        } else if (formatted.length === 10) {
+          textInput.setCustomValidity("Enter date as DD-MM-YYYY");
         } else {
-          textInput.setCustomValidity("Enter date as YYYY-MM-DD");
+          textInput.setCustomValidity("");
+          hiddenInput.value = "";
         }
       });
 
       textInput.addEventListener("blur", () => {
-        if (isValidDate(textInput.value.trim()) || !textInput.value.trim()) {
+          const value = textInput.value.trim();
+        if (isValidDisplayDate(value) || !value) {
           textInput.setCustomValidity("");
+          if (!value) {
+            hiddenInput.value = "";
+          }
         }
       });
 

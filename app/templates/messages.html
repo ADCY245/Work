@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}Messages | PhysiHome{% endblock %}
+{% block content %}
+<section class="messages-board">
+  <div class="messages-header">
+    <div>
+      <p class="eyebrow">Secure inbox</p>
+      <h1>Stay in sync with your care team</h1>
+      <p class="muted">Send updates, share progress photos, and keep every instruction in one place.</p>
+    </div>
+    <a class="btn secondary" href="/doctors">Discover doctors for consultation</a>
+  </div>
+
+  {% if threads and threads|length %}
+  <div class="threads">
+    {% for thread in threads %}
+    <article class="thread-card">
+      <h3>{{ thread.doctor or thread.patient }}</h3>
+      <p>{{ thread.last_message }}</p>
+      <p class="timestamp">{{ thread.timestamp }}</p>
+      <div class="hero-cta" style="margin-top: 1rem;">
+        <a class="btn primary" href="/messages/{{ loop.index0 }}">Open conversation</a>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <h3>No messages yet</h3>
+    <p>Once you connect with a physiotherapist, all your chats will show up here. Until then, browse trusted doctors and start a conversation.</p>
+    <a class="btn primary" href="/doctors">Discover doctors for consultation</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

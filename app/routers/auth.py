@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +56,19 @@ def _normalize_gender(value: str | None) -> str | None:
     return None
 
 
+def _normalize_iso_date(value: str | None) -> str | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    for fmt in ("%Y-%m-%d", "%d-%m-%Y"):
+        try:
+            parsed = datetime.strptime(raw, fmt).date()
+            return parsed.isoformat()
+        except ValueError:
+            continue
+    return None
+
+
 async def _send_otp_email(email: str, otp: str) -> str | None:
     subject = "Your PhysiHome verification code"
     body = f"Your OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
@@ -84,7 +97,8 @@ async def signup(
     request: Request,
     first_name: str = Form(...),
     last_name: str = Form(...),
-    dob: str = Form(...),
+    dob: str = Form(""),
+    dob_backup: str = Form(""),
     phone: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
@@ -94,6 +108,16 @@ async def signup(
     db = get_database()
     normalized_email = _normalize_email(email)
     phone_clean = phone.strip()
+    dob_iso = _normalize_iso_date(dob) or _normalize_iso_date(dob_backup)
+    if not dob_iso:
+        return templates.TemplateResponse(
+            "auth/signup.html",
+            base_context(
+                request,
+                error="Enter your date of birth as DD-MM-YYYY or use the picker.",
+            ),
+            status_code=400,
+        )
 
     is_valid_password, password_error = validate_password_strength(password)
     if not is_valid_password:
@@ -142,7 +166,7 @@ async def signup(
     base_fields = {
         "first_name": first_name.strip(),
         "last_name": last_name.strip(),
-        "dob": dob,
+        "dob": dob_iso,
         "phone": phone_clean,
         "password_hash": hash_password(password),
         "role": "user",
@@ -189,7 +213,8 @@ async def doctor_signup(
     request: Request,
     first_name: str = Form(...),
     last_name: str = Form(...),
-    dob: str = Form(...),
+    dob: str = Form(""),
+    dob_backup: str = Form(""),
     phone: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
@@ -201,6 +226,14 @@ async def doctor_signup(
 ):
     db = get_database()
     normalized_email = _normalize_email(email)
+    phone_clean = phone.strip()
+    dob_iso = _normalize_iso_date(dob) or _normalize_iso_date(dob_backup)
+    if not dob_iso:
+        return templates.TemplateResponse(
+            "auth/doctor_signup.html",
+            base_context(request, error="Enter your date of birth as DD-MM-YYYY or use the picker."),
+            status_code=400,
+        )
 
     is_valid_password, password_error = validate_password_strength(password)
     if not is_valid_password:
@@ -250,7 +283,7 @@ async def doctor_signup(
     pending_user_doc = {
         "first_name": first_name.strip(),
         "last_name": last_name.strip(),
-        "dob": dob,
+        "dob": dob_iso,
         "phone": phone_clean,
         "email": normalized_email,
         "password_hash": hash_password(password),

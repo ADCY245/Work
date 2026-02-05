@@ -47,17 +47,18 @@
             pattern="\d{4}-\d{2}-\d{2}"
             title="YYYY-MM-DD format"
           />
+          <input type="hidden" name="dob" data-dob-hidden />
           <div class="dob-text-entry">
             <input
               type="text"
               inputmode="numeric"
-              placeholder="YYYY-MM-DD"
-              aria-label="Type your date of birth as YYYY-MM-DD"
+              placeholder="DD-MM-YYYY"
+              aria-label="Type your date of birth as DD-MM-YYYY"
               data-dob-text
-              name="dob"
+              name="dob_display"
               autocomplete="bday"
             />
-            <small class="helper">Type the date or use the picker.</small>
+            <small class="helper">Type the date (DD-MM-YYYY) or use the picker.</small>
           </div>
         </div>
       </label>
