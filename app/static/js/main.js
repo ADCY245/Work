@@ -106,6 +106,78 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initDobFields();
 
+  const initLoggedInSearch = () => {
+    document.querySelectorAll("[data-search-toggle]").forEach((button) => {
+      const container = button.closest(".logged-in-search");
+      if (!container) return;
+      const panel = container.querySelector("[data-search-panel]");
+      if (!panel) return;
+
+      const updateState = (expanded) => {
+        button.setAttribute("aria-expanded", expanded ? "true" : "false");
+        panel.hidden = !expanded;
+      };
+
+      const hasPrefill = Array.from(panel.querySelectorAll("input")).some(
+        (input) => input.value.trim()
+      );
+      if (hasPrefill) {
+        updateState(true);
+      } else {
+        updateState(false);
+      }
+
+      button.addEventListener("click", () => {
+        const expanded = panel.hidden;
+        updateState(expanded);
+        if (expanded) {
+          panel.querySelector("input")?.focus();
+        }
+      });
+    });
+  };
+
+  const initDocumentZoom = () => {
+    const lightbox = document.querySelector("[data-image-lightbox]");
+    if (!lightbox) return;
+    const img = lightbox.querySelector("[data-lightbox-img]");
+    const caption = lightbox.querySelector("[data-lightbox-caption]");
+    const closeTargets = lightbox.querySelectorAll("[data-lightbox-close]");
+
+    const close = () => {
+      lightbox.hidden = true;
+      document.body.style.overflow = "";
+      if (img) img.src = "";
+      if (caption) caption.textContent = "";
+    };
+
+    const open = (src, label) => {
+      if (!img || !src) return;
+      img.src = src;
+      if (caption) caption.textContent = label || "";
+      lightbox.hidden = false;
+      document.body.style.overflow = "hidden";
+    };
+
+    closeTargets.forEach((target) => target.addEventListener("click", close));
+    lightbox.addEventListener("click", (event) => {
+      if (event.target === lightbox.querySelector(".lightbox-backdrop")) {
+        close();
+      }
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !lightbox.hidden) {
+        close();
+      }
+    });
+
+    document.querySelectorAll("[data-zoom-src]").forEach((element) => {
+      element.addEventListener("click", () => {
+        open(element.dataset.zoomSrc, element.dataset.zoomLabel);
+      });
+    });
+  };
+
   const profileCard = document.querySelector(".profile-card");
   if (profileCard?.dataset.pendingVerification === "true") {
     const dialog = document.getElementById("pendingVerificationDialog");
@@ -195,4 +267,6 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   initAdminTabs();
+  initLoggedInSearch();
+  initDocumentZoom();
 });

@@ -18,6 +18,22 @@
   </div>
   {% endif %}
 
+  {% if location_updated %}
+  <div class="alert success">Practice location updated successfully.</div>
+  {% elif location_error %}
+  <div class="alert error">Could not update your practice location. Please enter a city and a valid PIN.</div>
+  {% endif %}
+
+  {% if documents_updated %}
+  <div class="alert success">Documents uploaded. {% if reverify_notice %}We will re-verify your degree shortly.{% endif %}</div>
+  {% elif documents_error %}
+  <div class="alert error">Upload at least one document to update your profile.</div>
+  {% endif %}
+
+  {% if reverify_notice and not documents_updated %}
+  <div class="alert warn">Degree replacements trigger re-verification. Our team will review and update your status soon.</div>
+  {% endif %}
+
   <div class="profile-grid">
     <div>
       <p class="label">Email</p>
@@ -51,23 +67,72 @@
     <div class="doc-grid">
       {% if self_photo_url %}
       <figure class="doc-card">
-        <img src="{{ self_photo_url }}" alt="Self photo" />
+        <button class="doc-thumb" type="button" data-zoom-src="{{ self_photo_url }}" data-zoom-label="Self photo">
+          <img src="{{ self_photo_url }}" alt="Self photo" />
+          <span class="doc-thumb-action">Zoom</span>
+        </button>
         <figcaption>Self photo</figcaption>
       </figure>
       {% endif %}
       {% if degree_photo_url %}
       <figure class="doc-card">
-        <img src="{{ degree_photo_url }}" alt="Degree document" />
+        <button class="doc-thumb" type="button" data-zoom-src="{{ degree_photo_url }}" data-zoom-label="Degree certificate">
+          <img src="{{ degree_photo_url }}" alt="Degree document" />
+          <span class="doc-thumb-action">Zoom</span>
+        </button>
         <figcaption>Degree certificate</figcaption>
       </figure>
       {% endif %}
       {% if visiting_card_url %}
       <figure class="doc-card">
-        <img src="{{ visiting_card_url }}" alt="Visiting card" />
+        <button class="doc-thumb" type="button" data-zoom-src="{{ visiting_card_url }}" data-zoom-label="Visiting card">
+          <img src="{{ visiting_card_url }}" alt="Visiting card" />
+          <span class="doc-thumb-action">Zoom</span>
+        </button>
         <figcaption>Visiting card</figcaption>
       </figure>
       {% endif %}
     </div>
+  </div>
+  {% endif %}
+
+  {% if is_doctor %}
+  <div class="profile-actions">
+    <section class="card profile-form">
+      <h2>Update practice location</h2>
+      <p class="muted">City and PIN help patients find you faster. Details stay hidden from your public profile.</p>
+      <form class="stack" method="post" action="/api/auth/doctor/update-location">
+        <label>
+          City
+          <input type="text" name="city" placeholder="e.g. Mumbai" value="{{ profile.city or '' }}" required />
+        </label>
+        <label>
+          Preferred PIN code
+          <input type="text" name="preferred_pin" placeholder="Enter PIN" inputmode="numeric" pattern="\d{3,6}" value="{{ profile.preferred_pin or '' }}" required />
+        </label>
+        <button class="btn primary" type="submit">Save location</button>
+      </form>
+    </section>
+
+    <section class="card profile-form">
+      <h2>Update documents</h2>
+      <p class="muted">Add replacements for any document. If you change your degree certificate, verification resets to pending until we verify again.</p>
+      <form class="stack" method="post" action="/api/auth/doctor/update-documents" enctype="multipart/form-data">
+        <label>
+          Self photo (optional)
+          <input type="file" name="self_photo" accept="image/*" />
+        </label>
+        <label>
+          Degree certificate (triggers re-verification)
+          <input type="file" name="degree_photo" accept="image/*,.pdf" />
+        </label>
+        <label>
+          Visiting card
+          <input type="file" name="visiting_card" accept="image/*,.pdf" />
+        </label>
+        <button class="btn secondary" type="submit">Upload updates</button>
+      </form>
+    </section>
   </div>
   {% endif %}
 

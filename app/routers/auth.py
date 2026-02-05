@@ -15,6 +15,7 @@ from app.routers.web import base_context
 from app.services.auth_utils import (
     create_session_token,
     generate_otp,
+    get_user_from_request,
     hash_otp,
     hash_password,
     utcnow,
@@ -89,7 +90,7 @@ async def _send_doctor_documents_email(email: str, attachments: list[tuple[str, 
         await run_in_threadpool(send_email, subject, body, settings.admin_emails, attachments)
         return None
     except Exception as exc:  # pragma: no cover - surface in UI
-        return str(exc)
+        return None
 
 
 @router.post("/signup", response_class=HTMLResponse)
@@ -219,6 +220,8 @@ async def doctor_signup(
     email: str = Form(...),
     password: str = Form(...),
     specialization: str = Form(...),
+    city: str = Form(...),
+    preferred_pin: str = Form(...),
     gender: str | None = Form(None),
     self_photo: UploadFile = File(...),
     degree_photo: UploadFile = File(...),
@@ -228,10 +231,20 @@ async def doctor_signup(
     normalized_email = _normalize_email(email)
     phone_clean = phone.strip()
     dob_iso = _normalize_iso_date(dob) or _normalize_iso_date(dob_backup)
+    city_clean = city.strip()
+    preferred_pin_clean = _normalize_pin(preferred_pin)
+
     if not dob_iso:
         return templates.TemplateResponse(
             "auth/doctor_signup.html",
             base_context(request, error="Enter your date of birth as DD-MM-YYYY or use the picker."),
+            status_code=400,
+        )
+
+    if not city_clean or not preferred_pin_clean:
+        return templates.TemplateResponse(
+            "auth/doctor_signup.html",
+            base_context(request, error="City and a valid PIN code are required."),
             status_code=400,
         )
 
@@ -300,6 +313,8 @@ async def doctor_signup(
             "degree_photo": degree_payload,
             "visiting_card": visiting_card_payload,
         },
+        "city": city_clean,
+        "preferred_pin": preferred_pin_clean,
         "created_at": now,
     }
 
@@ -508,6 +523,8 @@ async def verify_otp_handler(
             "doctor_verification_status": doctor_status,
             "specialization": target_user.get("specialization"),
             "documents": target_user.get("documents"),
+            "city": target_user.get("city"),
+            "preferred_pin": target_user.get("preferred_pin"),
             "has_logged_in": True,
             "created_at": target_user["created_at"],
             "verified_at": verified_at,
@@ -600,6 +617,84 @@ async def logout_handler():
     response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie(settings.session_cookie_name)
     return response
+
+
+@router.post("/doctor/update-location")
+async def update_doctor_location(
+    request: Request,
+    city: str = Form(...),
+    preferred_pin: str = Form(...),
+):
+    user = await get_user_from_request(request)
+    if not user or user.get("role") != "doctor":
+        return RedirectResponse(url="/login", status_code=303)
+
+    city_clean = city.strip()
+    preferred_pin_clean = _normalize_pin(preferred_pin)
+
+    if not city_clean or not preferred_pin_clean:
+        return RedirectResponse(url="/profile?location_error=1", status_code=303)
+
+    db = get_database()
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"city": city_clean, "preferred_pin": preferred_pin_clean}},
+    )
+
+    return RedirectResponse(url="/profile?location_updated=1", status_code=303)
+
+
+@router.post("/doctor/update-documents")
+async def update_doctor_documents(
+    request: Request,
+    self_photo: UploadFile | None = File(None),
+    degree_photo: UploadFile | None = File(None),
+    visiting_card: UploadFile | None = File(None),
+):
+    user = await get_user_from_request(request)
+    if not user or user.get("role") != "doctor":
+        return RedirectResponse(url="/login", status_code=303)
+
+    db = get_database()
+    documents = dict(user.get("documents", {}))
+    updates: dict[str, Any] = {}
+    changed = False
+    requires_reverification = False
+
+    if self_photo:
+        payload = await _file_to_payload(self_photo)
+        if payload:
+            documents["self_photo"] = payload
+            updates["profile_photo"] = payload
+            changed = True
+
+    if visiting_card:
+        payload = await _file_to_payload(visiting_card)
+        if payload:
+            documents["visiting_card"] = payload
+            changed = True
+
+    if degree_photo:
+        payload = await _file_to_payload(degree_photo)
+        if payload:
+            documents["degree_photo"] = payload
+            changed = True
+            if user.get("doctor_verification_status") == "verified":
+                updates["doctor_verification_status"] = "pending"
+                requires_reverification = True
+
+    if not changed:
+        return RedirectResponse(url="/profile?documents_error=1", status_code=303)
+
+    updates["documents"] = documents
+
+    await db.users.update_one({"_id": user["_id"]}, {"$set": updates})
+
+    redirect_url = "/profile?documents_updated=1"
+    if requires_reverification:
+        redirect_url += "&pending_verification=1&reverify_notice=1"
+
+    return RedirectResponse(url=redirect_url, status_code=303)
 
 
 @router.post("/admin/approve-doctor")

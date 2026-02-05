@@ -14,15 +14,31 @@
     {% endif %}
     <h1>Rejuvenate your health</h1>
     <p class="tagline">Find physiotherapists for home visits or online practice.</p>
-    <form class="search-bar" action="/doctors" method="get">
-      <input
-        type="text"
-        name="q"
-        placeholder="Search by condition, injury, or city"
-        aria-label="Search physiotherapists"
-      />
-      <button class="btn primary" type="submit">Search</button>
-    </form>
+    <div class="logged-in-search">
+      <button class="btn primary" type="button" data-search-toggle>Search for doctors</button>
+      <form class="search-fields" action="/doctors" method="get" data-search-panel hidden>
+        <label>
+          City
+          <input
+            type="text"
+            name="city"
+            placeholder="e.g. Mumbai"
+            autocomplete="address-level2"
+          />
+        </label>
+        <label>
+          PIN code
+          <input
+            type="text"
+            name="pin_code"
+            placeholder="Enter your PIN code"
+            inputmode="numeric"
+            pattern="\d{3,6}"
+          />
+        </label>
+        <button class="btn secondary" type="submit">Show doctors</button>
+      </form>
+    </div>
     {% if current_user and current_user.role == 'doctor' %}
     <p class="doctor-note">Interact with your patients, share exercise plans, and keep every follow-up in one place.</p>
     {% else %}

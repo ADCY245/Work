@@ -96,6 +96,31 @@
       </label>
     </div>
 
+    <div class="form-grid two-col">
+      <label>
+        City you operate in
+        <input
+          type="text"
+          name="city"
+          placeholder="e.g. Mumbai"
+          autocomplete="address-level2"
+          required
+        />
+      </label>
+      <label>
+        Preferred PIN code
+        <input
+          type="text"
+          name="preferred_pin"
+          placeholder="e.g. 400060"
+          pattern="\d{3,6}"
+          inputmode="numeric"
+          required
+        />
+        <small class="helper">We use this to match nearby patients.</small>
+      </label>
+    </div>
+
     <label>
       Specialization
       <input

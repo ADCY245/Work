@@ -64,7 +64,7 @@ async def build_context(request: Request, **extra):
     user = await get_user_from_request(request)
     is_authenticated = user is not None
     show_admin = bool(user and user.get("is_admin"))
-    show_messages = is_authenticated and user and user.get("role") in {"user", "doctor"}
+    show_messages = is_authenticated
     return base_context(
         request,
         is_authenticated=is_authenticated,
@@ -92,11 +92,23 @@ async def contact(request: Request):
 
 
 @router.get("/doctors", response_class=HTMLResponse)
-async def doctors(request: Request):
+async def doctors(
+    request: Request,
+    city: str | None = Query(None),
+    pin_code: str | None = Query(None),
+):
     db = get_database()
     cursor = db.users.find(
         {"role": "doctor", "doctor_verification_status": "verified"},
-        {"first_name": 1, "last_name": 1, "specialization": 1, "gender": 1, "profile_photo": 1},
+        {
+            "first_name": 1,
+            "last_name": 1,
+            "specialization": 1,
+            "gender": 1,
+            "profile_photo": 1,
+            "city": 1,
+            "preferred_pin": 1,
+        },
     )
     doctors_list = []
     async for doc in cursor:
@@ -104,13 +116,52 @@ async def doctors(request: Request):
             {
                 "name": f"Dr. {doc['first_name']} {doc['last_name']}",
                 "specialization": doc.get("specialization", "General"),
-                "distance": "TBD",
-                "availability": "TBD",
+                "city": (doc.get("city") or "").strip(),
+                "preferred_pin": doc.get("preferred_pin"),
                 "avatar_url": resolve_avatar(doc),
             }
         )
+
+    def parse_pin(value: str | None) -> int | None:
+        if not value:
+            return None
+        digits = "".join(ch for ch in value if ch.isdigit())
+        return int(digits) if digits else None
+
+    user_pin = parse_pin(pin_code)
+    search_city = (city or "").strip().lower()
+
+    for entry in doctors_list:
+        entry_city = (entry.get("city") or "").strip().lower()
+        entry_pin = parse_pin(entry.get("preferred_pin"))
+        entry["city_match"] = bool(search_city and entry_city == search_city)
+        entry["pin_distance"] = (
+            abs(entry_pin - user_pin)
+            if entry_pin is not None and user_pin is not None
+            else None
+        )
+        entry["pin_exact_match"] = bool(entry["pin_distance"] == 0)
+        entry["pin_value"] = entry_pin
+
+    def sort_key(entry):
+        city_match = 0 if not search_city else (0 if entry.get("city_match") else 1)
+        pin_distance = (
+            entry.get("pin_distance")
+            if entry.get("pin_distance") is not None
+            else 10**6
+        )
+        return (city_match, pin_distance, entry["name"])
+
+    doctors_sorted = sorted(doctors_list, key=sort_key)
+
     return templates.TemplateResponse(
-        "doctors.html", await build_context(request, doctors=doctors_list)
+        "doctors.html",
+        await build_context(
+            request,
+            doctors=doctors_sorted,
+            search_city=city or "",
+            search_pin=pin_code or "",
+        ),
     )
 
 
@@ -130,10 +181,19 @@ async def doctor_signup(request: Request):
 
 
 @router.get("/profile", response_class=HTMLResponse)
-async def profile(request: Request, pending_verification: bool = Query(False)):
+async def profile(
+    request: Request,
+    pending_verification: bool = Query(False),
+    location_updated: bool = Query(False),
+    documents_updated: bool = Query(False),
+    location_error: bool = Query(False),
+    documents_error: bool = Query(False),
+    reverify_notice: bool = Query(False),
+):
     user = await get_user_from_request(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    is_doctor = user.get("role") == "doctor"
     profile_data = {
         "name": f"{user['first_name']} {user['last_name']}",
         "contact": user.get("phone"),
@@ -144,6 +204,8 @@ async def profile(request: Request, pending_verification: bool = Query(False)):
         "specialization": user.get("specialization"),
         "pending_verification": pending_verification,
         "doctor_verification_status": user.get("doctor_verification_status"),
+        "city": user.get("city"),
+        "preferred_pin": user.get("preferred_pin"),
     }
 
     documents = user.get("documents", {})
@@ -157,6 +219,12 @@ async def profile(request: Request, pending_verification: bool = Query(False)):
             request,
             profile=profile_data,
             pending_verification=pending_verification,
+            location_updated=location_updated,
+            documents_updated=documents_updated,
+            location_error=location_error,
+            documents_error=documents_error,
+            reverify_notice=reverify_notice,
+            is_doctor=is_doctor,
             self_photo_url=to_data_uri(self_photo),
             degree_photo_url=to_data_uri(degree_photo),
             visiting_card_url=to_data_uri(visiting_card),
@@ -167,20 +235,9 @@ async def profile(request: Request, pending_verification: bool = Query(False)):
 
 @router.get("/messages", response_class=HTMLResponse)
 async def messages(request: Request):
-    sample_threads = [
-        {
-            "doctor": "Dr. Meera S.",
-            "last_message": "See you at 6 PM.",
-            "timestamp": "Today - 4:05 PM",
-        },
-        {
-            "doctor": "Dr. Prakash Rao",
-            "last_message": "Please continue the stretches.",
-            "timestamp": "Yesterday - 8:50 PM",
-        },
-    ]
+    # Placeholder until real messaging backend exists. Render empty state when no threads.
     return templates.TemplateResponse(
-        "messages.html", await build_context(request, threads=sample_threads)
+        "messages.html", await build_context(request, threads=[])
     )
 
 

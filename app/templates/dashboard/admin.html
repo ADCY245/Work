@@ -78,19 +78,28 @@
           {% if p.self_photo_url %}
           <div>
             <h4>Self Photo</h4>
-            <img src="{{ p.self_photo_url }}" alt="Self Photo" />
+            <button class="doc-thumb" type="button" data-zoom-src="{{ p.self_photo_url }}" data-zoom-label="Self Photo">
+              <img src="{{ p.self_photo_url }}" alt="Self Photo" />
+              <span class="doc-thumb-action">Zoom</span>
+            </button>
           </div>
           {% endif %}
           {% if p.degree_photo_url %}
           <div>
             <h4>Degree</h4>
-            <img src="{{ p.degree_photo_url }}" alt="Degree" />
+            <button class="doc-thumb" type="button" data-zoom-src="{{ p.degree_photo_url }}" data-zoom-label="Degree certificate">
+              <img src="{{ p.degree_photo_url }}" alt="Degree" />
+              <span class="doc-thumb-action">Zoom</span>
+            </button>
           </div>
           {% endif %}
           {% if p.visiting_card_url %}
           <div>
             <h4>Visiting Card</h4>
-            <img src="{{ p.visiting_card_url }}" alt="Visiting Card" />
+            <button class="doc-thumb" type="button" data-zoom-src="{{ p.visiting_card_url }}" data-zoom-label="Visiting card">
+              <img src="{{ p.visiting_card_url }}" alt="Visiting Card" />
+              <span class="doc-thumb-action">Zoom</span>
+            </button>
           </div>
           {% endif %}
         </div>

@@ -2,39 +2,42 @@
 {% block title %}Find Home-Visit Doctors | PhysiHome{% endblock %}
 {% block content %}
 <section class="page-hero">
-  <p class="eyebrow">Find trusted care</p>
-  <h1>Search doctors offering home visits near you.</h1>
-  <p>Filter by specialization, distance, and availability. Start a secure chat to confirm a visit.</p>
+  <p class="eyebrow">Trusted physiotherapists</p>
+  <h1>Match with home-visit doctors by city & PIN.</h1>
+  <p>Enter your locality to surface nearby professionals. We sort by city accuracy first, then by how close the PINs are.</p>
 </section>
 
 <section class="search-panel card">
-  <form class="search-form">
+  <form class="search-form" action="/doctors" method="get">
     <label>
-      Location (PIN or City)
-      <input type="text" placeholder="e.g., 560038" />
+      City
+      <input type="text" name="city" placeholder="e.g. Mumbai" value="{{ search_city }}" />
     </label>
     <label>
-      Specialization
-      <select>
-        <option value="">Any</option>
-        <option value="physiotherapy">Physiotherapy</option>
-        <option value="geriatrics">Geriatric Care</option>
-        <option value="general">General Physician</option>
-      </select>
+      PIN code
+      <input type="text" name="pin_code" placeholder="e.g. 400060" inputmode="numeric" pattern="\d{3,6}" value="{{ search_pin }}" />
     </label>
-    <label>
-      Distance radius
-      <select>
-        <option value="5">Within 5 km</option>
-        <option value="10">Within 10 km</option>
-        <option value="20">Within 20 km</option>
-      </select>
-    </label>
-    <button type="submit" class="btn primary">Search</button>
+    <button type="submit" class="btn primary">Show doctors</button>
   </form>
+  {% if search_city or search_pin %}
+  <p class="muted small" style="margin-top: 0.75rem;">
+    Showing matches for
+    {% if search_city %}<strong>{{ search_city|title }}</strong>{% endif %}
+    {% if search_city and search_pin %} · {% endif %}
+    {% if search_pin %}PIN <strong>{{ search_pin }}</strong>{% endif %}.
+    City matches appear first, followed by the closest PIN codes.
+  </p>
+  {% endif %}
 </section>
 
-<section class="card-list">
+<section class="card-list doctor-results">
+  {% if doctors|length == 0 %}
+  <article class="card empty-state">
+    <h3>No doctors found</h3>
+    <p>Try widening your PIN radius or clearing the city filter.</p>
+    <a class="btn secondary" href="/doctors">Reset search</a>
+  </article>
+  {% else %}
   {% for doctor in doctors %}
   <article class="card doctor-card">
     <header>
@@ -42,15 +45,28 @@
       <div>
         <h3>{{ doctor.name }}</h3>
         <span class="badge">{{ doctor.specialization }}</span>
+        <div class="match-flags">
+          {% if doctor.city_match %}
+          <span class="match-badge">City match</span>
+          {% endif %}
+          {% if doctor.pin_exact_match %}
+          <span class="match-badge success">Exact PIN</span>
+          {% elif doctor.pin_distance is not none %}
+          <span class="match-badge muted">PIN ± {{ doctor.pin_distance }}</span>
+          {% endif %}
+        </div>
       </div>
     </header>
-    <p><strong>Distance:</strong> {{ doctor.distance }}</p>
-    <p><strong>Availability:</strong> {{ doctor.availability }}</p>
+    <div class="doctor-meta">
+      <p><strong>City:</strong> {{ doctor.city or 'Not provided' }}</p>
+      <p><strong>Preferred PIN:</strong> {{ doctor.preferred_pin or 'N/A' }}</p>
+    </div>
     <div class="actions">
-      <button class="btn ghost">View profile</button>
-      <button class="btn primary">Start chat</button>
+      <a class="btn ghost" href="/messages">Send message</a>
+      <a class="btn primary" href="/messages">Book consultation</a>
     </div>
   </article>
   {% endfor %}
+  {% endif %}
 </section>
 {% endblock %}
