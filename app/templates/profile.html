@@ -63,7 +63,12 @@
 
   {% if self_photo_url or degree_photo_url or visiting_card_url %}
   <div class="profile-docs">
-    <h2>Uploaded documents</h2>
+    <div class="profile-docs-header">
+      <h2>Uploaded documents</h2>
+      {% if is_doctor %}
+      <button class="icon-btn" type="button" aria-label="Update documents" data-docs-edit>&#9998;</button>
+      {% endif %}
+    </div>
     <div class="doc-grid">
       {% if self_photo_url %}
       <figure class="doc-card">
@@ -114,7 +119,7 @@
       </form>
     </section>
 
-    <section class="card profile-form">
+    <section class="card profile-form" id="updateDocuments" data-docs-update hidden>
       <h2>Update documents</h2>
       <p class="muted">Add replacements for any document. If you change your degree certificate, verification resets to pending until we verify again.</p>
       <form class="stack" method="post" action="/api/auth/doctor/update-documents" enctype="multipart/form-data">

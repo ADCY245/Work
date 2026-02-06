@@ -143,12 +143,55 @@ document.addEventListener("DOMContentLoaded", () => {
     const img = lightbox.querySelector("[data-lightbox-img]");
     const caption = lightbox.querySelector("[data-lightbox-caption]");
     const closeTargets = lightbox.querySelectorAll("[data-lightbox-close]");
+    const btnZoomIn = lightbox.querySelector("[data-lightbox-zoom-in]");
+    const btnZoomOut = lightbox.querySelector("[data-lightbox-zoom-out]");
+    const btnReset = lightbox.querySelector("[data-lightbox-reset]");
+
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+
+    const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    const applyTransform = () => {
+      if (!img) return;
+      img.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+      img.style.transformOrigin = "center center";
+      img.style.cursor = scale > 1 ? "grab" : "default";
+    };
+
+    const resetTransform = () => {
+      scale = 1;
+      translateX = 0;
+      translateY = 0;
+      applyTransform();
+    };
+
+    const zoomBy = (delta, clientX, clientY) => {
+      if (!img) return;
+      const rect = img.getBoundingClientRect();
+      const originX = clientX ?? rect.left + rect.width / 2;
+      const originY = clientY ?? rect.top + rect.height / 2;
+
+      const prevScale = scale;
+      scale = clamp(scale + delta, 1, 6);
+      const ratio = scale / prevScale;
+
+      translateX = (translateX - (originX - rect.left - rect.width / 2)) * ratio + (originX - rect.left - rect.width / 2);
+      translateY = (translateY - (originY - rect.top - rect.height / 2)) * ratio + (originY - rect.top - rect.height / 2);
+
+      applyTransform();
+    };
 
     const close = () => {
       lightbox.hidden = true;
       document.body.style.overflow = "";
       if (img) img.src = "";
       if (caption) caption.textContent = "";
+      resetTransform();
     };
 
     const open = (src, label) => {
@@ -157,6 +200,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (caption) caption.textContent = label || "";
       lightbox.hidden = false;
       document.body.style.overflow = "hidden";
+      resetTransform();
     };
 
     closeTargets.forEach((target) => target.addEventListener("click", close));
@@ -169,6 +213,42 @@ document.addEventListener("DOMContentLoaded", () => {
       if (event.key === "Escape" && !lightbox.hidden) {
         close();
       }
+    });
+
+    btnZoomIn?.addEventListener("click", () => zoomBy(0.5));
+    btnZoomOut?.addEventListener("click", () => zoomBy(-0.5));
+    btnReset?.addEventListener("click", () => resetTransform());
+
+    img?.addEventListener(
+      "wheel",
+      (event) => {
+        if (lightbox.hidden) return;
+        event.preventDefault();
+        const direction = event.deltaY < 0 ? 1 : -1;
+        zoomBy(direction * 0.25, event.clientX, event.clientY);
+      },
+      { passive: false }
+    );
+
+    img?.addEventListener("mousedown", (event) => {
+      if (scale <= 1) return;
+      isDragging = true;
+      dragStartX = event.clientX - translateX;
+      dragStartY = event.clientY - translateY;
+      img.style.cursor = "grabbing";
+    });
+
+    document.addEventListener("mousemove", (event) => {
+      if (!isDragging) return;
+      translateX = event.clientX - dragStartX;
+      translateY = event.clientY - dragStartY;
+      applyTransform();
+    });
+
+    document.addEventListener("mouseup", () => {
+      if (!isDragging) return;
+      isDragging = false;
+      applyTransform();
     });
 
     document.querySelectorAll("[data-zoom-src]").forEach((element) => {
@@ -266,7 +346,21 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
+  const initDocsEditor = () => {
+    document.querySelectorAll("[data-docs-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const section = document.querySelector("[data-docs-update]");
+        if (!section) return;
+        section.hidden = !section.hidden;
+        if (!section.hidden) {
+          section.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    });
+  };
+
   initAdminTabs();
   initLoggedInSearch();
   initDocumentZoom();
+  initDocsEditor();
 });

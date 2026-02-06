@@ -70,6 +70,16 @@ def _normalize_iso_date(value: str | None) -> str | None:
     return None
 
 
+def _normalize_pin(value: str | None) -> str | None:
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if len(digits) < 3:
+        return None
+    return digits[:6]
+
+
 async def _send_otp_email(email: str, otp: str) -> str | None:
     subject = "Your PhysiHome verification code"
     body = f"Your OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."

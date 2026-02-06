@@ -557,6 +557,28 @@ textarea:focus {
   gap: 0.5rem;
 }
 
+.lightbox-toolbar {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.lightbox-btn {
+  border: 1px solid rgba(27, 36, 64, 0.15);
+  background: rgba(27, 36, 64, 0.04);
+  color: var(--text);
+  border-radius: 0.75rem;
+  padding: 0.45rem 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lightbox-btn:hover {
+  background: rgba(28, 124, 84, 0.12);
+  border-color: rgba(28, 124, 84, 0.25);
+  color: var(--brand);
+}
+
 .small {
   font-size: 0.9rem;
   color: var(--muted);
@@ -691,6 +713,32 @@ textarea:focus {
 .profile-docs {
   display: grid;
   gap: 1rem;
+}
+
+.profile-docs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.icon-btn {
+  border: 1px solid rgba(27, 36, 64, 0.15);
+  background: rgba(27, 36, 64, 0.04);
+  color: var(--text);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 1.1rem;
+}
+
+.icon-btn:hover {
+  background: rgba(28, 124, 84, 0.12);
+  border-color: rgba(28, 124, 84, 0.25);
+  color: var(--brand);
 }
 
 .doc-grid {
