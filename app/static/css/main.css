@@ -633,6 +633,9 @@ textarea:focus {
   max-width: 420px;
   width: 90%;
   box-shadow: 0 30px 70px rgba(18, 18, 33, 0.2);
+  position: fixed;
+  inset: 0;
+  margin: auto;
 }
 
 .modal::backdrop {
@@ -698,6 +701,7 @@ textarea:focus {
   background: rgba(11, 16, 32, 0.04);
   display: grid;
   place-items: center;
+  touch-action: none;
 }
 
 .lightbox-content img {

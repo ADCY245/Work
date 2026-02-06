@@ -249,6 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const pointerTarget = viewport || img;
     pointerTarget?.addEventListener("pointerdown", (event) => {
       if (!img || lightbox.hidden) return;
+      event.preventDefault();
       pointerTarget.setPointerCapture?.(event.pointerId);
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -271,6 +272,9 @@ document.addEventListener("DOMContentLoaded", () => {
     pointerTarget?.addEventListener("pointermove", (event) => {
       if (!img || lightbox.hidden) return;
       if (!pointers.has(event.pointerId)) return;
+      if (pointers.size >= 1 && (scale > 1 || pointers.size === 2)) {
+        event.preventDefault();
+      }
       const prevPoint = pointers.get(event.pointerId);
       pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
 
@@ -447,10 +451,43 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
+  const initAdminActions = () => {
+    if (!document.querySelector("[data-admin-dashboard]")) return;
+
+    window.approveDoctor = async (userId) => {
+      if (!userId) return;
+      const response = await fetch("/api/auth/admin/approve-doctor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        alert("Could not approve doctor. Please try again.");
+      }
+    };
+
+    window.rejectDoctor = async (userId) => {
+      if (!userId) return;
+      const response = await fetch("/api/auth/admin/reject-doctor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId }),
+      });
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        alert("Could not reject doctor. Please try again.");
+      }
+    };
+  };
+
   initAdminTabs();
   initLoggedInSearch();
   initDocumentZoom();
   initDocsEditor();
   initProfileEditor();
   initDialogCloseButtons();
+  initAdminActions();
 });
