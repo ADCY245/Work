@@ -133,14 +133,27 @@
     </label>
 
     <label>
-      Password
+      Medical License/Registration Number
       <input
-        type="password"
-        name="password"
-        placeholder="Create a strong password"
-        autocomplete="new-password"
+        type="text"
+        name="license"
+        placeholder="e.g. MCI123456"
         required
       />
+    </label>
+
+    <label>
+      Password
+      <div style="position:relative;">
+        <input
+          type="password"
+          name="password"
+          placeholder="Create a strong password"
+          autocomplete="new-password"
+          required
+        />
+        <button type="button" onclick="togglePassword(this.previousElementSibling)" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; font-size:1.2rem; cursor:pointer;">👁</button>
+      </div>
     </label>
 
     <div class="form-grid two-col">

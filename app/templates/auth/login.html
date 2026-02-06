@@ -16,7 +16,10 @@
     </label>
     <label>
       Password
-      <input type="password" name="password" placeholder="Enter password" required />
+      <div style="position:relative;">
+        <input type="password" name="password" placeholder="Enter password" required />
+        <button type="button" onclick="togglePassword(this.previousElementSibling)" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; font-size:1.2rem; cursor:pointer;">👁</button>
+      </div>
     </label>
     <button class="btn primary" type="submit">Sign in</button>
   </form>

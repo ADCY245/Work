@@ -451,6 +451,15 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
+  window.togglePassword = (input) => {
+    const type = input.type === "password" ? "text" : "password";
+    input.type = type;
+    const button = input.nextElementSibling;
+    if (button && button.tagName === "BUTTON") {
+      button.textContent = type === "password" ? "👁" : "🙈";
+    }
+  };
+
   const initAdminActions = () => {
     if (!document.querySelector("[data-admin-dashboard]")) return;
 

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, Body, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
@@ -230,6 +230,7 @@ async def doctor_signup(
     email: str = Form(...),
     password: str = Form(...),
     specialization: str = Form(...),
+    license: str = Form(...),
     city: str = Form(...),
     preferred_pin: str = Form(...),
     gender: str | None = Form(None),
@@ -318,6 +319,7 @@ async def doctor_signup(
         "otp_expires_at": now + timedelta(minutes=settings.otp_expiry_minutes),
         "doctor_verification_status": "pending",
         "specialization": specialization.strip(),
+        "license": license.strip(),
         "documents": {
             "self_photo": self_payload,
             "degree_photo": degree_payload,
@@ -786,7 +788,7 @@ async def update_doctor_documents(
 
 
 @router.post("/admin/approve-doctor")
-async def approve_doctor(request: Request, payload: dict[str, str]):
+async def approve_doctor(request: Request, payload: dict[str, Any] = Body(...)):
     user = await get_user_from_request(request)
     if not user or not user.get("is_admin"):
         return {"error": "Unauthorized"}, 403
@@ -800,7 +802,7 @@ async def approve_doctor(request: Request, payload: dict[str, str]):
 
 
 @router.post("/admin/reject-doctor")
-async def reject_doctor(request: Request, payload: dict[str, str]):
+async def reject_doctor(request: Request, payload: dict[str, Any] = Body(...)):
     user = await get_user_from_request(request)
     if not user or not user.get("is_admin"):
         return {"error": "Unauthorized"}, 403

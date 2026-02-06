@@ -103,16 +103,19 @@
 
     <label>
       Password
-      <input
-        type="password"
-        name="password"
-        placeholder="Create a strong password"
-        autocomplete="new-password"
-        required
-        minlength="8"
-        pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
-        title="Must be at least 8 characters and include upper, lower, number, and special character"
-      />
+      <div style="position:relative;">
+        <input
+          type="password"
+          name="password"
+          placeholder="Create a strong password"
+          autocomplete="new-password"
+          required
+          minlength="8"
+          pattern="(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}"
+          title="Must be at least 8 characters and include upper, lower, number, and special character"
+        />
+        <button type="button" onclick="togglePassword(this.previousElementSibling)" style="position:absolute; right:10px; top:50%; transform:translateY(-50%); background:none; border:none; font-size:1.2rem; cursor:pointer;">👁</button>
+      </div>
       <small class="helper">Use at least 8 characters including upper, lower, number, and symbol.</small>
     </label>
     <button class="btn primary" type="submit">Send OTP</button>
