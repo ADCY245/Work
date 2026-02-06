@@ -39,12 +39,16 @@
   </article>
   {% else %}
   {% for doctor in doctors %}
-  <article class="card doctor-card">
+  <article class="card doctor-card" data-doctor-card data-doctor-name="{{ doctor.name }}" data-doctor-description="{{ doctor.description or '' }}">
     <header>
       <img src="{{ doctor.avatar_url }}" alt="{{ doctor.name }}" />
       <div>
         <h3>{{ doctor.name }}</h3>
         <span class="badge">{{ doctor.specialization }}</span>
+        <div class="doctor-rating" aria-label="Doctor rating">
+          <span class="stars" data-stars>★★★★★</span>
+          <span class="small" data-review-count>(0)</span>
+        </div>
         <div class="match-flags">
           {% if doctor.city_match %}
           <span class="match-badge">City match</span>
@@ -63,10 +67,41 @@
     </div>
     <div class="actions">
       <a class="btn ghost" href="/messages">Send message</a>
-      <a class="btn primary" href="/messages">Book consultation</a>
+      <button class="btn primary" type="button" data-open-review>Review</button>
     </div>
   </article>
   {% endfor %}
   {% endif %}
 </section>
+
+<dialog id="doctorDescriptionDialog" class="modal">
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2 data-doctor-description-title>Doctor details</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <p data-doctor-description-body class="muted"></p>
+  </div>
+</dialog>
+
+<dialog id="reviewDialog" class="modal">
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2>Leave a review</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <p class="muted" data-review-doctor></p>
+    <div class="stars" role="radiogroup" aria-label="Rating" data-review-stars>
+      <button class="kebab-item" type="button" data-star="1">★</button>
+      <button class="kebab-item" type="button" data-star="2">★</button>
+      <button class="kebab-item" type="button" data-star="3">★</button>
+      <button class="kebab-item" type="button" data-star="4">★</button>
+      <button class="kebab-item" type="button" data-star="5">★</button>
+    </div>
+    <div class="modal-actions">
+      <button class="btn primary" type="button" data-submit-review>Submit</button>
+      <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
+    </div>
+  </div>
+</dialog>
 {% endblock %}

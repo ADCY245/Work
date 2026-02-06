@@ -265,7 +265,19 @@ main {
   border-radius: 999px;
   padding: 0.75rem 1.75rem;
   font-weight: 600;
+  cursor: pointer;
   border: 1px solid transparent;
+}
+
+button,
+summary,
+.tab-btn,
+.kebab-item {
+  cursor: pointer;
+}
+
+a.btn {
+  cursor: pointer;
 }
 
 .btn.primary {
@@ -999,6 +1011,95 @@ textarea:focus {
 .doctor-results .doctor-card {
   display: grid;
   gap: 1rem;
+}
+
+.doctor-results .doctor-card header {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.doctor-results .doctor-card header img {
+  width: 72px;
+  height: 72px;
+  border-radius: 1rem;
+  object-fit: cover;
+  flex: 0 0 auto;
+}
+
+.doctor-results .doctor-card {
+  cursor: pointer;
+}
+
+.doctor-results .doctor-card .actions,
+.doctor-results .doctor-card .actions a,
+.doctor-results .doctor-card .actions button {
+  cursor: pointer;
+}
+
+.doctor-rating {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.stars {
+  display: inline-flex;
+  gap: 0.15rem;
+  color: #f59e0b;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.kebab {
+  position: relative;
+}
+
+.kebab-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid rgba(27, 36, 64, 0.15);
+  background: rgba(27, 36, 64, 0.04);
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.kebab-menu {
+  position: absolute;
+  right: 0;
+  top: 44px;
+  min-width: 190px;
+  background: #fff;
+  border: 1px solid rgba(27, 36, 64, 0.12);
+  border-radius: 0.75rem;
+  box-shadow: 0 18px 40px rgba(18, 18, 33, 0.12);
+  padding: 0.5rem;
+  z-index: 10;
+  display: grid;
+  gap: 0.25rem;
+}
+
+.kebab-menu[hidden] {
+  display: none;
+}
+
+.kebab-item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.6rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.kebab-item:hover {
+  background: rgba(27, 36, 64, 0.06);
 }
 
 .doctor-meta {

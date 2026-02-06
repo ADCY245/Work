@@ -51,6 +51,27 @@
             <h3>{{ d.name }}</h3>
             <p>{{ d.email }}</p>
           </div>
+          <div class="kebab">
+            <button class="kebab-btn" type="button" aria-label="Doctor actions" data-kebab-btn>⋯</button>
+            <div class="kebab-menu" hidden data-kebab-menu
+              data-doctor-id="{{ d._id }}"
+              data-doctor-name="{{ d.name }}"
+              data-doctor-email="{{ d.email }}"
+              data-doctor-phone="{{ d.phone or '' }}"
+              data-doctor-specialization="{{ d.specialization or '' }}"
+              data-doctor-license="{{ d.license or '' }}"
+              data-doctor-city="{{ d.city or '' }}"
+              data-doctor-pin="{{ d.preferred_pin or '' }}"
+              data-doctor-description="{{ d.description or '' }}"
+              data-self-photo="{{ d.self_photo_url or '' }}"
+              data-degree-photo="{{ d.degree_photo_url or '' }}"
+              data-visiting-card="{{ d.visiting_card_url or '' }}"
+            >
+              <button class="kebab-item" type="button" data-admin-view>View details</button>
+              <button class="kebab-item" type="button" data-admin-unverify>Unverify</button>
+              <button class="kebab-item" type="button" data-admin-restrict>Restrict</button>
+            </div>
+          </div>
         </header>
         <p>Specialization: {{ d.specialization or 'General' }}</p>
       </article>
@@ -71,6 +92,28 @@
           <div>
             <h3>{{ p.name }}</h3>
             <p>{{ p.email }}</p>
+          </div>
+          <div class="kebab">
+            <button class="kebab-btn" type="button" aria-label="Doctor actions" data-kebab-btn>⋯</button>
+            <div class="kebab-menu" hidden data-kebab-menu
+              data-doctor-id="{{ p._id }}"
+              data-doctor-name="{{ p.name }}"
+              data-doctor-email="{{ p.email }}"
+              data-doctor-phone="{{ p.phone or '' }}"
+              data-doctor-specialization="{{ p.specialization or '' }}"
+              data-doctor-license="{{ p.license or '' }}"
+              data-doctor-city="{{ p.city or '' }}"
+              data-doctor-pin="{{ p.preferred_pin or '' }}"
+              data-doctor-description="{{ p.description or '' }}"
+              data-self-photo="{{ p.self_photo_url or '' }}"
+              data-degree-photo="{{ p.degree_photo_url or '' }}"
+              data-visiting-card="{{ p.visiting_card_url or '' }}"
+            >
+              <button class="kebab-item" type="button" data-admin-view>View details</button>
+              <button class="kebab-item" type="button" data-admin-approve>Approve</button>
+              <button class="kebab-item" type="button" data-admin-reject>Reject</button>
+              <button class="kebab-item" type="button" data-admin-restrict>Restrict</button>
+            </div>
           </div>
         </header>
         <p>Status: {{ p.doctor_verification_status }}</p>
@@ -103,10 +146,6 @@
           </div>
           {% endif %}
         </div>
-        <div class="actions">
-          <button class="btn primary" onclick="approveDoctor('{{ p._id }}')">Approve</button>
-          <button class="btn ghost" onclick="rejectDoctor('{{ p._id }}')">Reject</button>
-        </div>
       </article>
       {% endfor %}
       {% if pending|length == 0 %}
@@ -115,4 +154,49 @@
     </div>
   </div>
 </section>
+
+<dialog id="adminDoctorDetailsDialog" class="modal">
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2 data-admin-details-title>Doctor details</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <div class="stack" style="text-align:left;">
+      <p><strong>Email:</strong> <span data-admin-details-email></span></p>
+      <p><strong>Phone:</strong> <span data-admin-details-phone></span></p>
+      <p><strong>Specialization:</strong> <span data-admin-details-specialization></span></p>
+      <p><strong>License:</strong> <span data-admin-details-license></span></p>
+      <p><strong>City:</strong> <span data-admin-details-city></span></p>
+      <p><strong>Preferred PIN:</strong> <span data-admin-details-pin></span></p>
+      <p><strong>Description:</strong></p>
+      <p class="muted" data-admin-details-description></p>
+      <div class="documents" style="margin:0;">
+        <button class="doc-thumb" type="button" data-admin-doc="self" data-zoom-label="Self Photo"><img alt="Self photo" /></button>
+        <button class="doc-thumb" type="button" data-admin-doc="degree" data-zoom-label="Degree"><img alt="Degree" /></button>
+        <button class="doc-thumb" type="button" data-admin-doc="visiting" data-zoom-label="Visiting card"><img alt="Visiting card" /></button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="adminReasonDialog" class="modal">
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2 data-admin-reason-title>Provide a reason</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <form class="stack" data-admin-reason-form>
+      <input type="hidden" name="user_id" />
+      <input type="hidden" name="action" />
+      <label>
+        Reason
+        <textarea name="reason" rows="4" required></textarea>
+      </label>
+      <div class="modal-actions">
+        <button class="btn primary" type="submit">Confirm</button>
+        <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
+      </div>
+    </form>
+  </div>
+</dialog>
 {% endblock %}

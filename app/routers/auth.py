@@ -809,6 +809,27 @@ async def update_doctor_license(
     return RedirectResponse(url="/profile?license_updated=1", status_code=303)
 
 
+@router.post("/doctor/update-description")
+async def update_doctor_description(
+    request: Request,
+    description: str = Form(...),
+):
+    user = await get_user_from_request(request)
+    if not user or user.get("role") != "doctor":
+        return RedirectResponse(url="/login", status_code=303)
+
+    description_clean = description.strip()
+    if not description_clean:
+        return RedirectResponse(url="/profile", status_code=303)
+
+    db = get_database()
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"description": description_clean}},
+    )
+    return RedirectResponse(url="/profile", status_code=303)
+
+
 @router.post("/admin/approve-doctor")
 async def approve_doctor(request: Request, payload: dict[str, Any] = Body(...)):
     user = await get_user_from_request(request)
@@ -842,8 +863,81 @@ async def reject_doctor(request: Request, payload: dict[str, Any] = Body(...)):
         oid = ObjectId(str(user_id))
     except Exception:
         return JSONResponse({"error": "Invalid user_id"}, status_code=400)
+    reason = (payload.get("reason") or "").strip()
+    if not reason:
+        return JSONResponse({"error": "reason is required"}, status_code=400)
     await db.users.update_one(
         {"_id": oid},
-        {"$set": {"doctor_verification_status": "rejected"}}
+        {
+            "$set": {
+                "doctor_verification_status": "rejected",
+                "admin_last_action": "reject",
+                "admin_last_reason": reason,
+                "admin_last_action_at": utcnow(),
+                "admin_last_action_by": user.get("email"),
+            }
+        },
     )
     return {"status": "rejected"}
+
+
+@router.post("/admin/unverify-doctor")
+async def unverify_doctor(request: Request, payload: dict[str, Any] = Body(...)):
+    user = await get_user_from_request(request)
+    if not user or not user.get("is_admin"):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+    db = get_database()
+    user_id = payload.get("user_id")
+    reason = (payload.get("reason") or "").strip()
+    if not user_id:
+        return JSONResponse({"error": "user_id is required"}, status_code=400)
+    if not reason:
+        return JSONResponse({"error": "reason is required"}, status_code=400)
+    try:
+        oid = ObjectId(str(user_id))
+    except Exception:
+        return JSONResponse({"error": "Invalid user_id"}, status_code=400)
+    await db.users.update_one(
+        {"_id": oid},
+        {
+            "$set": {
+                "doctor_verification_status": "pending",
+                "admin_last_action": "unverify",
+                "admin_last_reason": reason,
+                "admin_last_action_at": utcnow(),
+                "admin_last_action_by": user.get("email"),
+            }
+        },
+    )
+    return {"status": "unverified"}
+
+
+@router.post("/admin/restrict-doctor")
+async def restrict_doctor(request: Request, payload: dict[str, Any] = Body(...)):
+    user = await get_user_from_request(request)
+    if not user or not user.get("is_admin"):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+    db = get_database()
+    user_id = payload.get("user_id")
+    reason = (payload.get("reason") or "").strip()
+    if not user_id:
+        return JSONResponse({"error": "user_id is required"}, status_code=400)
+    if not reason:
+        return JSONResponse({"error": "reason is required"}, status_code=400)
+    try:
+        oid = ObjectId(str(user_id))
+    except Exception:
+        return JSONResponse({"error": "Invalid user_id"}, status_code=400)
+    await db.users.update_one(
+        {"_id": oid},
+        {
+            "$set": {
+                "restricted": True,
+                "admin_last_action": "restrict",
+                "admin_last_reason": reason,
+                "admin_last_action_at": utcnow(),
+                "admin_last_action_by": user.get("email"),
+            }
+        },
+    )
+    return {"status": "restricted"}

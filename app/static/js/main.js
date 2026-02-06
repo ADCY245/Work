@@ -470,6 +470,221 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const initDescriptionRequiredPrompt = () => {
+    const wrapper = document.querySelector("[data-description-required]");
+    if (!wrapper) return;
+    if (wrapper.dataset.descriptionRequired !== "true") return;
+    const dialog = document.getElementById("descriptionRequiredDialog");
+    if (dialog && typeof dialog.showModal === "function") {
+      dialog.showModal();
+    }
+  };
+
+  const initDoctorCards = () => {
+    if (!document.querySelector("[data-doctor-card]")) return;
+
+    const descriptionDialog = document.getElementById("doctorDescriptionDialog");
+    const descriptionTitle = descriptionDialog?.querySelector("[data-doctor-description-title]");
+    const descriptionBody = descriptionDialog?.querySelector("[data-doctor-description-body]");
+
+    const reviewDialog = document.getElementById("reviewDialog");
+    const reviewDoctor = reviewDialog?.querySelector("[data-review-doctor]");
+    const reviewStars = reviewDialog?.querySelector("[data-review-stars]");
+    const submitReview = reviewDialog?.querySelector("[data-submit-review]");
+
+    let activeCard = null;
+    let selectedRating = 0;
+
+    const renderStars = (container, rating) => {
+      if (!container) return;
+      const full = "★".repeat(Math.max(0, Math.min(5, rating)));
+      const empty = "☆".repeat(Math.max(0, 5 - Math.max(0, Math.min(5, rating))));
+      container.textContent = `${full}${empty}`;
+    };
+
+    document.querySelectorAll("[data-doctor-card]").forEach((card) => {
+      const openReviewBtn = card.querySelector("[data-open-review]");
+      const starsEl = card.querySelector("[data-stars]");
+      const countEl = card.querySelector("[data-review-count]");
+
+      const rating = Number(card.dataset.rating || 0);
+      const count = Number(card.dataset.reviewCount || 0);
+      renderStars(starsEl, rating);
+      if (countEl) countEl.textContent = `(${count})`;
+
+      card.addEventListener("click", (event) => {
+        if (event.target && (event.target.closest("a") || event.target.closest("button"))) return;
+        if (!descriptionDialog || typeof descriptionDialog.showModal !== "function") return;
+        const name = card.dataset.doctorName || "Doctor details";
+        const desc = (card.dataset.doctorDescription || "").trim();
+        if (descriptionTitle) descriptionTitle.textContent = name;
+        if (descriptionBody) descriptionBody.textContent = desc || "No description provided yet.";
+        descriptionDialog.showModal();
+      });
+
+      openReviewBtn?.addEventListener("click", () => {
+        if (!reviewDialog || typeof reviewDialog.showModal !== "function") return;
+        activeCard = card;
+        selectedRating = 0;
+        if (reviewDoctor) reviewDoctor.textContent = card.dataset.doctorName || "";
+        reviewDialog.showModal();
+      });
+    });
+
+    reviewStars?.addEventListener("click", (event) => {
+      const btn = event.target?.closest("[data-star]");
+      if (!btn) return;
+      selectedRating = Number(btn.dataset.star || 0);
+      reviewStars.querySelectorAll("[data-star]").forEach((starBtn) => {
+        const on = Number(starBtn.dataset.star || 0) <= selectedRating;
+        starBtn.style.color = on ? "#f59e0b" : "rgba(27, 36, 64, 0.35)";
+      });
+    });
+
+    submitReview?.addEventListener("click", () => {
+      if (!activeCard || !selectedRating) return;
+      const starsEl = activeCard.querySelector("[data-stars]");
+      const countEl = activeCard.querySelector("[data-review-count]");
+      const prevCount = Number(activeCard.dataset.reviewCount || 0);
+      const prevRating = Number(activeCard.dataset.rating || 0);
+      const newCount = prevCount + 1;
+      const newRating = Math.round(((prevRating * prevCount) + selectedRating) / newCount);
+      activeCard.dataset.reviewCount = String(newCount);
+      activeCard.dataset.rating = String(newRating);
+      renderStars(starsEl, newRating);
+      if (countEl) countEl.textContent = `(${newCount})`;
+      reviewDialog?.close?.();
+    });
+  };
+
+  const initAdminKebabMenus = () => {
+    if (!document.querySelector("[data-admin-dashboard]")) return;
+
+    const detailsDialog = document.getElementById("adminDoctorDetailsDialog");
+    const reasonDialog = document.getElementById("adminReasonDialog");
+    const reasonForm = reasonDialog?.querySelector("[data-admin-reason-form]");
+
+    const fillDetails = (menu) => {
+      if (!detailsDialog) return;
+      detailsDialog.querySelector("[data-admin-details-title]").textContent = menu.dataset.doctorName || "Doctor details";
+      detailsDialog.querySelector("[data-admin-details-email]").textContent = menu.dataset.doctorEmail || "";
+      detailsDialog.querySelector("[data-admin-details-phone]").textContent = menu.dataset.doctorPhone || "";
+      detailsDialog.querySelector("[data-admin-details-specialization]").textContent = menu.dataset.doctorSpecialization || "";
+      detailsDialog.querySelector("[data-admin-details-license]").textContent = menu.dataset.doctorLicense || "";
+      detailsDialog.querySelector("[data-admin-details-city]").textContent = menu.dataset.doctorCity || "";
+      detailsDialog.querySelector("[data-admin-details-pin]").textContent = menu.dataset.doctorPin || "";
+      detailsDialog.querySelector("[data-admin-details-description]").textContent = (menu.dataset.doctorDescription || "").trim() || "No description";
+
+      const selfBtn = detailsDialog.querySelector('[data-admin-doc="self"]');
+      const degreeBtn = detailsDialog.querySelector('[data-admin-doc="degree"]');
+      const visitingBtn = detailsDialog.querySelector('[data-admin-doc="visiting"]');
+
+      const setDoc = (btn, src) => {
+        const img = btn?.querySelector("img");
+        if (!btn || !img) return;
+        if (src) {
+          img.src = src;
+          btn.hidden = false;
+          btn.dataset.zoomSrc = src;
+        } else {
+          btn.hidden = true;
+        }
+      };
+      setDoc(selfBtn, menu.dataset.selfPhoto);
+      setDoc(degreeBtn, menu.dataset.degreePhoto);
+      setDoc(visitingBtn, menu.dataset.visitingCard);
+    };
+
+    const openReason = (action, userId) => {
+      if (!reasonDialog || typeof reasonDialog.showModal !== "function") return;
+      const title = reasonDialog.querySelector("[data-admin-reason-title]");
+      if (title) title.textContent = `Reason for ${action}`;
+      reasonForm.elements.user_id.value = userId;
+      reasonForm.elements.action.value = action;
+      reasonForm.elements.reason.value = "";
+      reasonDialog.showModal();
+    };
+
+    document.addEventListener("click", (event) => {
+      const btn = event.target?.closest("[data-kebab-btn]");
+      if (btn) {
+        const kebab = btn.closest(".kebab");
+        const menu = kebab?.querySelector("[data-kebab-menu]");
+        if (!menu) return;
+        const isHidden = menu.hasAttribute("hidden");
+        document.querySelectorAll("[data-kebab-menu]").forEach((m) => m.setAttribute("hidden", ""));
+        if (isHidden) menu.removeAttribute("hidden");
+        return;
+      }
+
+      if (!event.target?.closest("[data-kebab-menu]")) {
+        document.querySelectorAll("[data-kebab-menu]").forEach((m) => m.setAttribute("hidden", ""));
+      }
+    });
+
+    document.querySelectorAll("[data-kebab-menu]").forEach((menu) => {
+      menu.querySelector("[data-admin-view]")?.addEventListener("click", () => {
+        fillDetails(menu);
+        detailsDialog?.showModal?.();
+        menu.setAttribute("hidden", "");
+      });
+
+      menu.querySelector("[data-admin-approve]")?.addEventListener("click", async () => {
+        menu.setAttribute("hidden", "");
+        const response = await fetch("/api/auth/admin/approve-doctor", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: menu.dataset.doctorId }),
+        });
+        if (response.ok) window.location.reload();
+        else alert((await response.text()) || "Could not approve doctor.");
+      });
+
+      menu.querySelector("[data-admin-reject]")?.addEventListener("click", () => {
+        menu.setAttribute("hidden", "");
+        openReason("reject", menu.dataset.doctorId);
+      });
+
+      menu.querySelector("[data-admin-unverify]")?.addEventListener("click", () => {
+        menu.setAttribute("hidden", "");
+        openReason("unverify", menu.dataset.doctorId);
+      });
+
+      menu.querySelector("[data-admin-restrict]")?.addEventListener("click", () => {
+        menu.setAttribute("hidden", "");
+        openReason("restrict", menu.dataset.doctorId);
+      });
+    });
+
+    reasonForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const userId = form.elements.user_id.value;
+      const action = form.elements.action.value;
+      const reason = form.elements.reason.value;
+
+      const endpointMap = {
+        reject: "/api/auth/admin/reject-doctor",
+        unverify: "/api/auth/admin/unverify-doctor",
+        restrict: "/api/auth/admin/restrict-doctor",
+      };
+      const url = endpointMap[action];
+      if (!url) return;
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, reason }),
+      });
+
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        alert((await response.text()) || "Request failed");
+      }
+    });
+  };
+
   const initAdminActions = () => {
     if (!document.querySelector("[data-admin-dashboard]")) return;
 
@@ -512,4 +727,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initDialogCloseButtons();
   initAdminActions();
   initLicenseRequiredPrompt();
+  initDescriptionRequiredPrompt();
+  initDoctorCards();
+  initAdminKebabMenus();
 });

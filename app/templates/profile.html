@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Profile | PhysiHome{% endblock %}
 {% block content %}
-<section class="profile-card card" data-pending-verification="{{ 'true' if pending_verification else 'false' }}" data-license-required="{{ 'true' if is_doctor and not profile.license else 'false' }}">
+<section class="profile-card card" data-pending-verification="{{ 'true' if pending_verification else 'false' }}" data-license-required="{{ 'true' if is_doctor and not profile.license else 'false' }}" data-description-required="{{ 'true' if is_doctor and not profile.description else 'false' }}">
   <header class="auth-header">
     <div class="profile-avatar">
       <img src="{{ profile_avatar_url }}" alt="Profile avatar" />
@@ -81,6 +81,12 @@
     <div>
       <p class="label">Registration number</p>
       <p>{{ profile.license }}</p>
+    </div>
+    {% endif %}
+    {% if is_doctor and profile.description %}
+    <div style="grid-column: 1 / -1;">
+      <p class="label">Description</p>
+      <p>{{ profile.description }}</p>
     </div>
     {% endif %}
     {% if profile.doctor_verification_status %}
@@ -230,6 +236,24 @@
         <label>
           Medical License/Registration Number
           <input type="text" name="license" required />
+        </label>
+        <div class="modal-actions">
+          <button class="btn primary" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+  {% endif %}
+
+  {% if is_doctor and not profile.description %}
+  <dialog id="descriptionRequiredDialog" class="modal">
+    <div class="modal-body">
+      <h2>Description required</h2>
+      <p>Please add a short description about your practice. Patients will see this before contacting you.</p>
+      <form class="stack" method="post" action="/api/auth/doctor/update-description">
+        <label>
+          Description
+          <textarea name="description" rows="4" required></textarea>
         </label>
         <div class="modal-actions">
           <button class="btn primary" type="submit">Save</button>
