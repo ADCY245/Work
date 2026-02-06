@@ -189,6 +189,8 @@ async def profile(
     location_error: bool = Query(False),
     documents_error: bool = Query(False),
     reverify_notice: bool = Query(False),
+    license_updated: bool = Query(False),
+    license_error: bool = Query(False),
 ):
     user = await get_user_from_request(request)
     if not user:
@@ -202,6 +204,7 @@ async def profile(
         "role": user.get("role"),
         "gender": user.get("gender"),
         "specialization": user.get("specialization"),
+        "license": user.get("license"),
         "pending_verification": pending_verification,
         "doctor_verification_status": user.get("doctor_verification_status"),
         "city": user.get("city"),
@@ -224,6 +227,8 @@ async def profile(
             location_error=location_error,
             documents_error=documents_error,
             reverify_notice=reverify_notice,
+            license_updated=license_updated,
+            license_error=license_error,
             is_doctor=is_doctor,
             self_photo_url=to_data_uri(self_photo),
             degree_photo_url=to_data_uri(degree_photo),
@@ -258,6 +263,7 @@ async def admin_dashboard(request: Request):
 
     for record in users:
         profile = {
+            "_id": str(record.get("_id")),
             "name": f"{record.get('first_name', '')} {record.get('last_name', '')}".strip(),
             "email": record.get("email"),
             "phone": record.get("phone"),

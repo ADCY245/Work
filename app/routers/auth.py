@@ -4,8 +4,9 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from bson import ObjectId
 from fastapi import APIRouter, Body, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 
@@ -691,8 +692,6 @@ async def login_handler(
     redirect_target = "/profile"
     if user.get("role") == "doctor" and user.get("doctor_verification_status") != "verified":
         redirect_target = "/profile?pending_verification=1"
-    elif user.get("role") == "doctor" and not user.get("license"):
-        redirect_target = "/profile?require_license=1"
 
     response = RedirectResponse(url=redirect_target, status_code=303)
     response.set_cookie(
@@ -702,23 +701,11 @@ async def login_handler(
         samesite="lax",
     )
     return response
-pdae-license
-pdaelicese(request: Request, icnse: st = Form...)
-@rouuset = await get_urer_frpm_request(request)
-    if oot user or user.get("rolt")(!" "doctor":
-        return/logout")login
 
-  aslicense_cleany=nlicens .dtrie()
-    if nft lice lu_ctean:
-        r_hurn RediradtResplnse(url="/pref(l)?licen_error=1", saus_code=303)
 
-    db = et_databae()
-    await dbur.update_e(
-        {"id": user["_id"]},
-        {"$set": {"liense": lcse_clen}}
-    
-
-    responsRedieectR spon=e(url="/ rRfile?liceese_updated=1", statud_codi=303)rectResponse(url="/", status_code=303)
+@router.post("/logout")
+async def logout_handler():
+    response = RedirectResponse(url="/", status_code=303)
     response.delete_cookie(settings.session_cookie_name)
     return response
 
@@ -801,25 +788,44 @@ async def update_doctor_documents(
     return RedirectResponse(url=redirect_url, status_code=303)
 
 
+@router.post("/doctor/update-license")
+async def update_doctor_license(
+    request: Request,
+    license: str = Form(...),
+):
+    user = await get_user_from_request(request)
+    if not user or user.get("role") != "doctor":
+        return RedirectResponse(url="/login", status_code=303)
+
+    license_clean = license.strip()
+    if not license_clean:
+        return RedirectResponse(url="/profile?license_error=1", status_code=303)
+
+    db = get_database()
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {"$set": {"license": license_clean}},
+    )
+    return RedirectResponse(url="/profile?license_updated=1", status_code=303)
+
+
 @router.post("/admin/approve-doctor")
 async def approve_doctor(request: Request, payload: dict[str, Any] = Body(...)):
     user = await get_user_from_request(request)
     if not user or not user.get("is_admin"):
-        return {"error": "Unauthorized"}, 403
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
     db = get_database()
     user_id = payload.get("user_id")
     if not user_id:
-        return {"error": "Missing user_id"}, 400
+        return JSONResponse({"error": "user_id is required"}, status_code=400)
     try:
-        oid = ObjectId(user_id)
-    except:
-        return {"error": "Invalid user ID"}, 400
-    result = await db.users.update_one(
+        oid = ObjectId(str(user_id))
+    except Exception:
+        return JSONResponse({"error": "Invalid user_id"}, status_code=400)
+    await db.users.update_one(
         {"_id": oid},
         {"$set": {"doctor_verification_status": "verified"}}
     )
-    if result.modified_count == 0:
-        return {"error": "Doctor not found"}, 404
     return {"status": "approved"}
 
 
@@ -827,19 +833,17 @@ async def approve_doctor(request: Request, payload: dict[str, Any] = Body(...)):
 async def reject_doctor(request: Request, payload: dict[str, Any] = Body(...)):
     user = await get_user_from_request(request)
     if not user or not user.get("is_admin"):
-        return {"error": "Unauthorized"}, 403
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
     db = get_database()
     user_id = payload.get("user_id")
     if not user_id:
-        return {"error": "Missing user_id"}, 400
+        return JSONResponse({"error": "user_id is required"}, status_code=400)
     try:
-        oid = ObjectId(user_id)
-    except:
-        return {"error": "Invalid user ID"}, 400
-    result = await db.users.update_one(
+        oid = ObjectId(str(user_id))
+    except Exception:
+        return JSONResponse({"error": "Invalid user_id"}, status_code=400)
+    await db.users.update_one(
         {"_id": oid},
         {"$set": {"doctor_verification_status": "rejected"}}
     )
-    if result.modified_count == 0:
-        return {"error": "Doctor not found"}, 404
     return {"status": "rejected"}

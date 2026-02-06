@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Profile | PhysiHome{% endblock %}
 {% block content %}
-<section class="profile-card card" data-pending-verification="{{ 'true' if pending_verification else 'false' }}">
+<section class="profile-card card" data-pending-verification="{{ 'true' if pending_verification else 'false' }}" data-license-required="{{ 'true' if is_doctor and not profile.license else 'false' }}">
   <header class="auth-header">
     <div class="profile-avatar">
       <img src="{{ profile_avatar_url }}" alt="Profile avatar" />
@@ -30,14 +30,14 @@
   <div class="alert error">Upload at least one document to update your profile.</div>
   {% endif %}
 
-  {% if reverify_notice and not documents_updated %}
-  <div class="alert warn">Degree replacements trigger re-verification. Our team will review and update your status soon.</div>
+  {% if license_updated %}
+  <div class="alert success">Registration number saved.</div>
+  {% elif license_error %}
+  <div class="alert error">Please enter your registration number to continue.</div>
   {% endif %}
 
-  {% if license_error %}
-  <div class="alert error">License number is required. Please enter a valid license.</div>
-  {% elif license_updated %}
-  <div class="alert success">License number updated successfully.</div>
+  {% if reverify_notice and not documents_updated %}
+  <div class="alert warn">Degree replacements trigger re-verification. Our team will review and update your status soon.</div>
   {% endif %}
 
   <div class="profile-grid-header">
@@ -75,6 +75,12 @@
     <div>
       <p class="label">Specialization</p>
       <p>{{ profile.specialization }}</p>
+    </div>
+    {% endif %}
+    {% if is_doctor and profile.license %}
+    <div>
+      <p class="label">Registration number</p>
+      <p>{{ profile.license }}</p>
     </div>
     {% endif %}
     {% if profile.doctor_verification_status %}
@@ -215,20 +221,22 @@
     </div>
   </dialog>
 
-  <dialog id="licenseDialog" class="modal">
+  {% if is_doctor and not profile.license %}
+  <dialog id="licenseRequiredDialog" class="modal">
     <div class="modal-body">
-      <h2>License Required</h2>
-      <p>Please enter your medical license/registration number to continue.</p>
-      <form class="stack" method="post" action="/api/auth/update-license">
+      <h2>Registration number required</h2>
+      <p>Please enter your medical license/registration number to continue using your doctor account.</p>
+      <form class="stack" method="post" action="/api/auth/doctor/update-license">
         <label>
           Medical License/Registration Number
-          <input type="text" name="license" placeholder="e.g. MCI123456" required />
+          <input type="text" name="license" required />
         </label>
         <div class="modal-actions">
-          <button class="btn primary" type="submit">Submit</button>
+          <button class="btn primary" type="submit">Save</button>
         </div>
       </form>
     </div>
   </dialog>
+  {% endif %}
 </section>
 {% endblock %}

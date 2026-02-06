@@ -451,14 +451,24 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
-  // Show license dialog if required
-  const urlParams = new URLSearchParams(window.location.search);
-  if (urlParams.get('require_license')) {
-    const licenseDialog = document.getElementById('licenseDialog');
-    if (licenseDialog) {
-      licenseDialog.showModal();
+  window.togglePassword = (input) => {
+    const type = input.type === "password" ? "text" : "password";
+    input.type = type;
+    const button = input.nextElementSibling;
+    if (button && button.tagName === "BUTTON") {
+      button.textContent = type === "password" ? "👁" : "🙈";
     }
-  }
+  };
+
+  const initLicenseRequiredPrompt = () => {
+    const wrapper = document.querySelector("[data-license-required]");
+    if (!wrapper) return;
+    if (wrapper.dataset.licenseRequired !== "true") return;
+    const dialog = document.getElementById("licenseRequiredDialog");
+    if (dialog && typeof dialog.showModal === "function") {
+      dialog.showModal();
+    }
+  };
 
   const initAdminActions = () => {
     if (!document.querySelector("[data-admin-dashboard]")) return;
@@ -473,7 +483,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (response.ok) {
         window.location.reload();
       } else {
-        alert("Could not approve doctor. Please try again.");
+        const msg = await response.text();
+        alert(msg || "Could not approve doctor. Please try again.");
       }
     };
 
@@ -487,7 +498,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (response.ok) {
         window.location.reload();
       } else {
-        alert("Could not reject doctor. Please try again.");
+        const msg = await response.text();
+        alert(msg || "Could not reject doctor. Please try again.");
       }
     };
   };
@@ -499,4 +511,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initProfileEditor();
   initDialogCloseButtons();
   initAdminActions();
+  initLicenseRequiredPrompt();
 });
