@@ -34,6 +34,12 @@
   <div class="alert warn">Degree replacements trigger re-verification. Our team will review and update your status soon.</div>
   {% endif %}
 
+  {% if license_error %}
+  <div class="alert error">License number is required. Please enter a valid license.</div>
+  {% elif license_updated %}
+  <div class="alert success">License number updated successfully.</div>
+  {% endif %}
+
   <div class="profile-grid-header">
     <h2 class="sr-only">Profile details</h2>
     <div></div>
@@ -205,6 +211,22 @@
       <p>Your profile verification will be completed within 12 hours. Thank you.</p>
       <form method="dialog">
         <button class="btn primary" type="submit">Got it</button>
+      </form>
+    </div>
+  </dialog>
+
+  <dialog id="licenseDialog" class="modal">
+    <div class="modal-body">
+      <h2>License Required</h2>
+      <p>Please enter your medical license/registration number to continue.</p>
+      <form class="stack" method="post" action="/api/auth/update-license">
+        <label>
+          Medical License/Registration Number
+          <input type="text" name="license" placeholder="e.g. MCI123456" required />
+        </label>
+        <div class="modal-actions">
+          <button class="btn primary" type="submit">Submit</button>
+        </div>
       </form>
     </div>
   </dialog>

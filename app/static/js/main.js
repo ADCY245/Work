@@ -451,14 +451,14 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
-  window.togglePassword = (input) => {
-    const type = input.type === "password" ? "text" : "password";
-    input.type = type;
-    const button = input.nextElementSibling;
-    if (button && button.tagName === "BUTTON") {
-      button.textContent = type === "password" ? "👁" : "🙈";
+  // Show license dialog if required
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('require_license')) {
+    const licenseDialog = document.getElementById('licenseDialog');
+    if (licenseDialog) {
+      licenseDialog.showModal();
     }
-  };
+  }
 
   const initAdminActions = () => {
     if (!document.querySelector("[data-admin-dashboard]")) return;

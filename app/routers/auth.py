@@ -691,6 +691,8 @@ async def login_handler(
     redirect_target = "/profile"
     if user.get("role") == "doctor" and user.get("doctor_verification_status") != "verified":
         redirect_target = "/profile?pending_verification=1"
+    elif user.get("role") == "doctor" and not user.get("license"):
+        redirect_target = "/profile?require_license=1"
 
     response = RedirectResponse(url=redirect_target, status_code=303)
     response.set_cookie(
@@ -700,11 +702,23 @@ async def login_handler(
         samesite="lax",
     )
     return response
+pdae-license
+pdaelicese(request: Request, icnse: st = Form...)
+@rouuset = await get_urer_frpm_request(request)
+    if oot user or user.get("rolt")(!" "doctor":
+        return/logout")login
 
+  aslicense_cleany=nlicens .dtrie()
+    if nft lice lu_ctean:
+        r_hurn RediradtResplnse(url="/pref(l)?licen_error=1", saus_code=303)
 
-@router.post("/logout")
-async def logout_handler():
-    response = RedirectResponse(url="/", status_code=303)
+    db = et_databae()
+    await dbur.update_e(
+        {"id": user["_id"]},
+        {"$set": {"liense": lcse_clen}}
+    
+
+    responsRedieectR spon=e(url="/ rRfile?liceese_updated=1", statud_codi=303)rectResponse(url="/", status_code=303)
     response.delete_cookie(settings.session_cookie_name)
     return response
 
@@ -794,10 +808,18 @@ async def approve_doctor(request: Request, payload: dict[str, Any] = Body(...)):
         return {"error": "Unauthorized"}, 403
     db = get_database()
     user_id = payload.get("user_id")
-    await db.users.update_one(
-        {"_id": ObjectId(user_id)},
+    if not user_id:
+        return {"error": "Missing user_id"}, 400
+    try:
+        oid = ObjectId(user_id)
+    except:
+        return {"error": "Invalid user ID"}, 400
+    result = await db.users.update_one(
+        {"_id": oid},
         {"$set": {"doctor_verification_status": "verified"}}
     )
+    if result.modified_count == 0:
+        return {"error": "Doctor not found"}, 404
     return {"status": "approved"}
 
 
@@ -808,8 +830,16 @@ async def reject_doctor(request: Request, payload: dict[str, Any] = Body(...)):
         return {"error": "Unauthorized"}, 403
     db = get_database()
     user_id = payload.get("user_id")
-    await db.users.update_one(
-        {"_id": ObjectId(user_id)},
+    if not user_id:
+        return {"error": "Missing user_id"}, 400
+    try:
+        oid = ObjectId(user_id)
+    except:
+        return {"error": "Invalid user ID"}, 400
+    result = await db.users.update_one(
+        {"_id": oid},
         {"$set": {"doctor_verification_status": "rejected"}}
     )
+    if result.modified_count == 0:
+        return {"error": "Doctor not found"}, 404
     return {"status": "rejected"}
