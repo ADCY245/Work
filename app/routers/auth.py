@@ -371,6 +371,7 @@ async def resend_otp(
     db = get_database()
     normalized_email = _normalize_email(email)
     pending_user = await db.pending_users.find_one({"email": normalized_email})
+    pending_email_user = await db.users.find_one({"pending_email": normalized_email})
     user = await db.users.find_one({"email": normalized_email})
 
     target_user = None
@@ -378,6 +379,9 @@ async def resend_otp(
     if pending_user:
         target_user = pending_user
         source = "pending"
+    elif pending_email_user:
+        target_user = pending_email_user
+        source = "users"
     elif user:
         target_user = user
         source = "users"
@@ -458,6 +462,7 @@ async def verify_otp_handler(
     db = get_database()
     normalized_email = _normalize_email(email)
     pending_user = await db.pending_users.find_one({"email": normalized_email})
+    pending_email_user = await db.users.find_one({"pending_email": normalized_email})
     user = await db.users.find_one({"email": normalized_email})
 
     target_user = None
@@ -465,6 +470,9 @@ async def verify_otp_handler(
     if pending_user:
         target_user = pending_user
         source = "pending"
+    elif pending_email_user:
+        target_user = pending_email_user
+        source = "users"
     elif user:
         target_user = user
         source = "users"
@@ -544,15 +552,21 @@ async def verify_otp_handler(
         await db.pending_users.delete_one({"_id": target_user["_id"]})
         created_user_id = result.inserted_id
     else:
+        pending_email = target_user.get("pending_email")
+        set_fields: dict[str, Any] = {
+            "is_otp_verified": True,
+            "has_logged_in": True,
+            "verified_at": verified_at,
+        }
+        unset_fields: dict[str, str] = {"otp_hash": "", "otp_expires_at": ""}
+        if pending_email and pending_email == normalized_email:
+            set_fields["email"] = normalized_email
+            unset_fields["pending_email"] = ""
         await db.users.update_one(
             {"_id": target_user["_id"]},
             {
-                "$set": {
-                    "is_otp_verified": True,
-                    "has_logged_in": True,
-                    "verified_at": verified_at,
-                },
-                "$unset": {"otp_hash": "", "otp_expires_at": ""},
+                "$set": set_fields,
+                "$unset": unset_fields,
             },
         )
         created_user_id = target_user["_id"]
@@ -575,6 +589,70 @@ async def verify_otp_handler(
         samesite="lax",
     )
     return response
+
+
+@router.post("/update-profile")
+async def update_profile(
+    request: Request,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    phone: str = Form(...),
+    email: str = Form(...),
+    city: str | None = Form(None),
+    preferred_pin: str | None = Form(None),
+):
+    user = await get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    db = get_database()
+    updates: dict[str, Any] = {
+        "first_name": first_name.strip(),
+        "last_name": last_name.strip(),
+        "phone": phone.strip(),
+    }
+
+    if user.get("role") == "doctor":
+        city_clean = (city or "").strip()
+        preferred_pin_clean = _normalize_pin(preferred_pin)
+        if not city_clean or not preferred_pin_clean:
+            return RedirectResponse(url="/profile?location_error=1", status_code=303)
+        updates["city"] = city_clean
+        updates["preferred_pin"] = preferred_pin_clean
+
+    normalized_email = _normalize_email(email)
+    current_email = (user.get("email") or "").strip().lower()
+    if normalized_email != current_email:
+        existing = await db.users.find_one({"email": normalized_email})
+        if existing and existing.get("_id") != user.get("_id"):
+            return RedirectResponse(url="/profile?profile_error=1", status_code=303)
+
+        otp = generate_otp(settings.otp_length)
+        otp_hash = hash_otp(otp, settings.secret_key)
+        now = utcnow()
+        otp_expires_at = now + timedelta(minutes=settings.otp_expiry_minutes)
+
+        updates["pending_email"] = normalized_email
+        updates["otp_hash"] = otp_hash
+        updates["otp_expires_at"] = otp_expires_at
+
+        await db.users.update_one({"_id": user["_id"]}, {"$set": updates})
+        email_error = await _send_otp_email(normalized_email, otp)
+        otp_debug = otp if email_error else None
+        return templates.TemplateResponse(
+            "auth/verify_otp.html",
+            base_context(
+                request,
+                email=normalized_email,
+                role=user.get("role"),
+                email_error=email_error,
+                otp_debug=otp_debug,
+                success_message="We sent a verification code to your new email.",
+            ),
+        )
+
+    await db.users.update_one({"_id": user["_id"]}, {"$set": updates})
+    return RedirectResponse(url="/profile?profile_updated=1", status_code=303)
 
 
 @router.post("/login")

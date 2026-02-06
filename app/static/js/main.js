@@ -146,15 +146,23 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnZoomIn = lightbox.querySelector("[data-lightbox-zoom-in]");
     const btnZoomOut = lightbox.querySelector("[data-lightbox-zoom-out]");
     const btnReset = lightbox.querySelector("[data-lightbox-reset]");
+    const viewport = lightbox.querySelector("[data-lightbox-viewport]");
 
     let scale = 1;
     let translateX = 0;
     let translateY = 0;
-    let isDragging = false;
-    let dragStartX = 0;
-    let dragStartY = 0;
+
+    const pointers = new Map();
+    let startTranslateX = 0;
+    let startTranslateY = 0;
+    let startScale = 1;
+    let startDistance = 0;
+    let startMidpoint = null;
+    let lastMidpoint = null;
 
     const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+    const getViewportRect = () => (viewport || img)?.getBoundingClientRect();
 
     const applyTransform = () => {
       if (!img) return;
@@ -170,20 +178,28 @@ document.addEventListener("DOMContentLoaded", () => {
       applyTransform();
     };
 
-    const zoomBy = (delta, clientX, clientY) => {
+    const zoomTo = (nextScale, clientX, clientY) => {
       if (!img) return;
-      const rect = img.getBoundingClientRect();
-      const originX = clientX ?? rect.left + rect.width / 2;
-      const originY = clientY ?? rect.top + rect.height / 2;
+      const rect = getViewportRect();
+      if (!rect) return;
 
       const prevScale = scale;
-      scale = clamp(scale + delta, 1, 6);
+      scale = clamp(nextScale, 1, 6);
+      if (scale === prevScale) return;
+
+      const originX = clientX ?? rect.left + rect.width / 2;
+      const originY = clientY ?? rect.top + rect.height / 2;
+      const dx = originX - (rect.left + rect.width / 2);
+      const dy = originY - (rect.top + rect.height / 2);
       const ratio = scale / prevScale;
 
-      translateX = (translateX - (originX - rect.left - rect.width / 2)) * ratio + (originX - rect.left - rect.width / 2);
-      translateY = (translateY - (originY - rect.top - rect.height / 2)) * ratio + (originY - rect.top - rect.height / 2);
-
+      translateX = translateX - dx * (ratio - 1);
+      translateY = translateY - dy * (ratio - 1);
       applyTransform();
+    };
+
+    const zoomBy = (delta, clientX, clientY) => {
+      zoomTo(scale + delta, clientX, clientY);
     };
 
     const close = () => {
@@ -219,37 +235,89 @@ document.addEventListener("DOMContentLoaded", () => {
     btnZoomOut?.addEventListener("click", () => zoomBy(-0.5));
     btnReset?.addEventListener("click", () => resetTransform());
 
-    img?.addEventListener(
+    (viewport || img)?.addEventListener(
       "wheel",
       (event) => {
         if (lightbox.hidden) return;
         event.preventDefault();
         const direction = event.deltaY < 0 ? 1 : -1;
-        zoomBy(direction * 0.25, event.clientX, event.clientY);
+        zoomBy(direction * 0.2, event.clientX, event.clientY);
       },
       { passive: false }
     );
 
-    img?.addEventListener("mousedown", (event) => {
-      if (scale <= 1) return;
-      isDragging = true;
-      dragStartX = event.clientX - translateX;
-      dragStartY = event.clientY - translateY;
-      img.style.cursor = "grabbing";
+    const pointerTarget = viewport || img;
+    pointerTarget?.addEventListener("pointerdown", (event) => {
+      if (!img || lightbox.hidden) return;
+      pointerTarget.setPointerCapture?.(event.pointerId);
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      startTranslateX = translateX;
+      startTranslateY = translateY;
+      startScale = scale;
+
+      if (pointers.size === 1) {
+        img.style.cursor = scale > 1 ? "grabbing" : "default";
+      }
+
+      if (pointers.size === 2) {
+        const [a, b] = Array.from(pointers.values());
+        startDistance = Math.hypot(b.x - a.x, b.y - a.y);
+        startMidpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        lastMidpoint = startMidpoint;
+      }
     });
 
-    document.addEventListener("mousemove", (event) => {
-      if (!isDragging) return;
-      translateX = event.clientX - dragStartX;
-      translateY = event.clientY - dragStartY;
-      applyTransform();
+    pointerTarget?.addEventListener("pointermove", (event) => {
+      if (!img || lightbox.hidden) return;
+      if (!pointers.has(event.pointerId)) return;
+      const prevPoint = pointers.get(event.pointerId);
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+      if (pointers.size === 1) {
+        if (scale <= 1) return;
+        if (!prevPoint) return;
+        const dx = event.clientX - prevPoint.x;
+        const dy = event.clientY - prevPoint.y;
+        translateX += dx;
+        translateY += dy;
+        applyTransform();
+        return;
+      }
+
+      if (pointers.size === 2) {
+        const [a, b] = Array.from(pointers.values());
+        const currentDistance = Math.hypot(b.x - a.x, b.y - a.y);
+        const midpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        const scaleFactor = startDistance ? currentDistance / startDistance : 1;
+        const nextScale = clamp(startScale * scaleFactor, 1, 6);
+
+        zoomTo(nextScale, midpoint.x, midpoint.y);
+
+        if (lastMidpoint) {
+          translateX += midpoint.x - lastMidpoint.x;
+          translateY += midpoint.y - lastMidpoint.y;
+        }
+        lastMidpoint = midpoint;
+        applyTransform();
+        return;
+      }
     });
 
-    document.addEventListener("mouseup", () => {
-      if (!isDragging) return;
-      isDragging = false;
+    const clearPointer = (event) => {
+      if (!pointers.has(event.pointerId)) return;
+      pointers.delete(event.pointerId);
+      if (pointers.size < 2) {
+        startMidpoint = null;
+        lastMidpoint = null;
+        startDistance = 0;
+        startScale = scale;
+      }
       applyTransform();
-    });
+    };
+
+    pointerTarget?.addEventListener("pointerup", clearPointer);
+    pointerTarget?.addEventListener("pointercancel", clearPointer);
 
     document.querySelectorAll("[data-zoom-src]").forEach((element) => {
       element.addEventListener("click", () => {
@@ -347,13 +415,33 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const initDocsEditor = () => {
+    const dialog = document.getElementById("documentsEditDialog");
     document.querySelectorAll("[data-docs-edit]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const section = document.querySelector("[data-docs-update]");
-        if (!section) return;
-        section.hidden = !section.hidden;
-        if (!section.hidden) {
-          section.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (dialog && typeof dialog.showModal === "function") {
+          dialog.showModal();
+        }
+      });
+    });
+  };
+
+  const initProfileEditor = () => {
+    const dialog = document.getElementById("profileEditDialog");
+    document.querySelectorAll("[data-profile-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (dialog && typeof dialog.showModal === "function") {
+          dialog.showModal();
+        }
+      });
+    });
+  };
+
+  const initDialogCloseButtons = () => {
+    document.querySelectorAll("[data-dialog-close]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const dialog = button.closest("dialog");
+        if (dialog && typeof dialog.close === "function") {
+          dialog.close();
         }
       });
     });
@@ -363,4 +451,6 @@ document.addEventListener("DOMContentLoaded", () => {
   initLoggedInSearch();
   initDocumentZoom();
   initDocsEditor();
+  initProfileEditor();
+  initDialogCloseButtons();
 });

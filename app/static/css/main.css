@@ -17,10 +17,23 @@
 }
 
 body {
-  min-height: 100vh;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background: var(--bg);
   color: var(--text);
+  min-height: 100vh;
   line-height: 1.6;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 a {
@@ -632,6 +645,20 @@ textarea:focus {
   gap: 1rem;
 }
 
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
 .image-lightbox[hidden] {
   display: none;
 }
@@ -663,11 +690,23 @@ textarea:focus {
   gap: 0.5rem;
 }
 
+.lightbox-viewport {
+  width: min(80vw, 960px);
+  height: min(70vh, 720px);
+  overflow: hidden;
+  border-radius: 0.75rem;
+  background: rgba(11, 16, 32, 0.04);
+  display: grid;
+  place-items: center;
+}
+
 .lightbox-content img {
-  max-width: 80vw;
-  max-height: 70vh;
+  max-width: 100%;
+  max-height: 100%;
   border-radius: 0.75rem;
   object-fit: contain;
+  touch-action: none;
+  user-select: none;
 }
 
 .lightbox-close {
@@ -701,6 +740,11 @@ textarea:focus {
   display: grid;
   gap: 1rem;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.profile-grid-header {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .profile-grid .label {
