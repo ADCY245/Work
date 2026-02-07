@@ -480,6 +480,165 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const initMessaging = () => {
+    const navBadge = document.querySelector("[data-messages-unread]");
+    const threadsList = document.querySelector("[data-threads-list]");
+    const conversationPanel = document.querySelector("[data-conversation-panel]");
+    const messagesList = document.querySelector("[data-messages-list]");
+    const activeThreadId = conversationPanel?.dataset.activeThreadId;
+
+    const setBadge = (count) => {
+      if (!navBadge) return;
+      const num = Number(count || 0);
+      if (num > 0) {
+        navBadge.hidden = false;
+        navBadge.textContent = String(num);
+      } else {
+        navBadge.hidden = true;
+      }
+    };
+
+    const fetchUnread = async () => {
+      try {
+        const res = await fetch("/api/messages/unread", {
+          headers: { Accept: "application/json" },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setBadge(data.unread);
+      } catch {
+        // ignore
+      }
+    };
+
+    const renderThreads = (threads) => {
+      if (!threadsList) return;
+      threadsList.innerHTML = "";
+      threads.forEach((t) => {
+        const a = document.createElement("a");
+        a.className = "card";
+        a.href = `/messages/${t._id}`;
+        a.style.padding = "0.75rem";
+        a.style.textDecoration = "none";
+        if (t.unread_count > 0) {
+          a.style.outline = "2px solid rgba(245, 158, 11, 0.35)";
+        }
+
+        const title = document.createElement("strong");
+        title.style.display = "block";
+        title.style.color = "inherit";
+        title.textContent = t.title;
+        a.appendChild(title);
+
+        const sub = document.createElement("span");
+        sub.className = "muted small";
+        sub.textContent = "Open conversation";
+        a.appendChild(sub);
+
+        if (t.unread_count > 0) {
+          const badge = document.createElement("span");
+          badge.className = "badge";
+          badge.style.marginLeft = "0.5rem";
+          badge.textContent = String(t.unread_count);
+          a.appendChild(badge);
+        }
+
+        threadsList.appendChild(a);
+      });
+    };
+
+    const refreshThreads = async () => {
+      if (!threadsList) return;
+      try {
+        const res = await fetch("/api/messages/threads", {
+          headers: { Accept: "application/json" },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderThreads(data.threads || []);
+      } catch {
+        // ignore
+      }
+    };
+
+    let lastSeen = null;
+    const appendMessages = (msgs) => {
+      if (!messagesList) return;
+      msgs.forEach((m) => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.justifyContent = m.is_me ? "flex-end" : "flex-start";
+        if (m.created_at) row.dataset.createdAt = m.created_at;
+
+        const bubble = document.createElement("div");
+        bubble.className = "card";
+        bubble.style.padding = "0.6rem 0.75rem";
+        bubble.style.maxWidth = "70%";
+
+        const text = document.createElement("div");
+        text.style.whiteSpace = "pre-wrap";
+        text.textContent = m.text;
+        bubble.appendChild(text);
+        row.appendChild(bubble);
+        messagesList.appendChild(row);
+
+        if (m.created_at) lastSeen = m.created_at;
+      });
+      messagesList.scrollTop = messagesList.scrollHeight;
+    };
+
+    const markRead = async () => {
+      if (!activeThreadId) return;
+      try {
+        await fetch(`/api/messages/${activeThreadId}/read`, { method: "POST" });
+      } catch {
+        // ignore
+      }
+    };
+
+    const pollActiveConversation = async () => {
+      if (!activeThreadId || !messagesList) return;
+      const url = new URL(
+        `/api/messages/${activeThreadId}/since`,
+        window.location.origin
+      );
+      if (lastSeen) url.searchParams.set("after", lastSeen);
+      try {
+        const res = await fetch(url.toString(), {
+          headers: { Accept: "application/json" },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        const msgs = data.messages || [];
+        if (msgs.length) {
+          appendMessages(msgs);
+          await markRead();
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    fetchUnread();
+    if (threadsList) {
+      refreshThreads();
+      setInterval(refreshThreads, 2500);
+    }
+    if (navBadge) {
+      setInterval(fetchUnread, 2500);
+    }
+    if (activeThreadId && messagesList) {
+      const existing = Array.from(
+        messagesList.querySelectorAll("[data-created-at]")
+      );
+      if (existing.length) {
+        lastSeen = existing[existing.length - 1].dataset.createdAt || null;
+      }
+      markRead();
+      setInterval(pollActiveConversation, 2000);
+    }
+  };
+
   const initDescriptionEditor = () => {
     const dialog = document.getElementById("descriptionEditDialog");
     if (!dialog) return;
@@ -751,4 +910,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initDescriptionEditor();
   initDoctorCards();
   initAdminKebabMenus();
+  initMessaging();
 });

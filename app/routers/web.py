@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from bson import ObjectId
 from cryptography.fernet import Fernet, InvalidToken
+from starlette.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.db import get_database
@@ -95,6 +96,27 @@ def _decrypt_text(token: str) -> str:
         return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
     except InvalidToken:
         return ""
+
+
+def _iso(dt: datetime | None) -> str | None:
+    if not dt:
+        return None
+    return dt.replace(microsecond=0).isoformat() + "Z"
+
+
+def _read_key(user_id: str) -> str:
+    return f"last_read_at.{user_id}"
+
+
+async def _compute_unread_count(db, conversation: dict, user_id: str) -> int:
+    last_read_at = (conversation.get("last_read_at") or {}).get(user_id)
+    query = {
+        "conversation_id": str(conversation.get("_id")),
+        "sender_id": {"$ne": user_id},
+    }
+    if last_read_at:
+        query["created_at"] = {"$gt": last_read_at}
+    return await db.messages.count_documents(query)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -290,11 +312,13 @@ async def messages(request: Request):
                 other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
             else:
                 other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+        unread_count = await _compute_unread_count(db, convo, user_id)
         threads.append(
             {
                 "_id": str(convo.get("_id")),
                 "title": other_name or "Conversation",
                 "updated_at": convo.get("updated_at"),
+                "unread_count": unread_count,
             }
         )
 
@@ -321,6 +345,11 @@ async def message_thread(request: Request, thread_id: str):
     if not convo:
         return RedirectResponse(url="/messages", status_code=303)
 
+    await db.conversations.update_one(
+        {"_id": convo_oid},
+        {"$set": {_read_key(user_id): datetime.utcnow()}},
+    )
+
     threads = []
     cursor_threads = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
     async for t in cursor_threads:
@@ -337,7 +366,14 @@ async def message_thread(request: Request, thread_id: str):
                 other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
             else:
                 other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
-        threads.append({"_id": str(t.get("_id")), "title": other_name or "Conversation"})
+        unread_count = await _compute_unread_count(db, t, user_id)
+        threads.append(
+            {
+                "_id": str(t.get("_id")),
+                "title": other_name or "Conversation",
+                "unread_count": unread_count,
+            }
+        )
 
     messages = []
     cursor_msgs = db.messages.find({"conversation_id": str(convo_oid)}).sort("created_at", 1)
@@ -346,7 +382,7 @@ async def message_thread(request: Request, thread_id: str):
             {
                 "sender_id": msg.get("sender_id"),
                 "text": _decrypt_text(msg.get("ciphertext") or ""),
-                "created_at": msg.get("created_at"),
+                "created_at": _iso(msg.get("created_at")),
                 "is_me": msg.get("sender_id") == user_id,
             }
         )
@@ -356,6 +392,120 @@ async def message_thread(request: Request, thread_id: str):
         "messages.html",
         await build_context(request, threads=threads, conversation=conversation, messages=messages),
     )
+
+
+@router.get("/api/messages/unread")
+async def api_unread(request: Request):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"unread": 0})
+    db = get_database()
+    user_id = str(user.get("_id"))
+    total = 0
+    cursor = db.conversations.find({"participants": user_id})
+    async for convo in cursor:
+        total += await _compute_unread_count(db, convo, user_id)
+    return JSONResponse({"unread": total})
+
+
+@router.get("/api/messages/threads")
+async def api_threads(request: Request):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"threads": []}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    threads = []
+    cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
+    async for convo in cursor:
+        other_id = next((pid for pid in convo.get("participants", []) if pid != user_id), None)
+        other_user = None
+        if other_id:
+            try:
+                other_user = await db.users.find_one({"_id": ObjectId(other_id)})
+            except Exception:
+                other_user = None
+        other_name = None
+        if other_user:
+            if other_user.get("role") == "doctor":
+                other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+            else:
+                other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+        unread_count = await _compute_unread_count(db, convo, user_id)
+        threads.append(
+            {
+                "_id": str(convo.get("_id")),
+                "title": other_name or "Conversation",
+                "unread_count": unread_count,
+                "updated_at": _iso(convo.get("updated_at")),
+            }
+        )
+    return JSONResponse({"threads": threads})
+
+
+@router.get("/api/messages/{thread_id}/since")
+async def api_messages_since(request: Request, thread_id: str, after: str | None = Query(None)):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"messages": []}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        convo_oid = ObjectId(thread_id)
+    except Exception:
+        return JSONResponse({"messages": []}, status_code=400)
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return JSONResponse({"messages": []}, status_code=403)
+
+    query = {"conversation_id": str(convo_oid)}
+    if after:
+        try:
+            after_dt = datetime.fromisoformat(after.replace("Z", ""))
+            query["created_at"] = {"$gt": after_dt}
+        except Exception:
+            pass
+
+    messages = []
+    cursor = db.messages.find(query).sort("created_at", 1)
+    async for msg in cursor:
+        messages.append(
+            {
+                "sender_id": msg.get("sender_id"),
+                "text": _decrypt_text(msg.get("ciphertext") or ""),
+                "created_at": _iso(msg.get("created_at")),
+                "is_me": msg.get("sender_id") == user_id,
+            }
+        )
+
+    return JSONResponse({"messages": messages})
+
+
+@router.post("/api/messages/{thread_id}/read")
+async def api_mark_read(request: Request, thread_id: str):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"ok": False}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        convo_oid = ObjectId(thread_id)
+    except Exception:
+        return JSONResponse({"ok": False}, status_code=400)
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return JSONResponse({"ok": False}, status_code=403)
+
+    await db.conversations.update_one(
+        {"_id": convo_oid},
+        {"$set": {_read_key(user_id): datetime.utcnow()}},
+    )
+    return JSONResponse({"ok": True})
 
 
 @router.post("/messages/{thread_id}/send")

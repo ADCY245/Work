@@ -16,7 +16,12 @@
           <li><a href="/about">About Us</a></li>
           <li><a href="/contact">Contact Us</a></li>
           {% if show_messages %}
-          <li><a href="/messages">Messages</a></li>
+          <li>
+            <a href="/messages" data-nav-messages>
+              Messages
+              <span class="badge" data-messages-unread hidden>0</span>
+            </a>
+          </li>
           {% endif %}
         </ul>
         <div class="profile-menu" data-auth="{{ 'true' if is_authenticated else 'false' }}">
