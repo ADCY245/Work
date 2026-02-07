@@ -1,10 +1,13 @@
 import base64
+import hashlib
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Request, Query
+from fastapi import APIRouter, Form, Request, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from bson import ObjectId
+from cryptography.fernet import Fernet, InvalidToken
 
 from app.core.config import get_settings
 from app.db import get_database
@@ -76,6 +79,24 @@ async def build_context(request: Request, **extra):
     )
 
 
+def _fernet() -> Fernet:
+    secret = (settings.secret_key or "").encode("utf-8")
+    digest = hashlib.sha256(secret).digest()
+    key = base64.urlsafe_b64encode(digest)
+    return Fernet(key)
+
+
+def _encrypt_text(text: str) -> str:
+    return _fernet().encrypt(text.encode("utf-8")).decode("utf-8")
+
+
+def _decrypt_text(token: str) -> str:
+    try:
+        return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
+    except InvalidToken:
+        return ""
+
+
 @router.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
     return templates.TemplateResponse("landing.html", await build_context(request))
@@ -115,6 +136,7 @@ async def doctors(
     async for doc in cursor:
         doctors_list.append(
             {
+                "_id": str(doc.get("_id")),
                 "name": f"Dr. {doc['first_name']} {doc['last_name']}",
                 "specialization": doc.get("specialization", "General"),
                 "description": (doc.get("description") or "").strip(),
@@ -248,9 +270,37 @@ async def messages(request: Request):
     user = await get_user_from_request(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
-    # Placeholder until real messaging backend exists. Render empty state when no threads.
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    threads = []
+
+    cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
+    async for convo in cursor:
+        other_id = next((pid for pid in convo.get("participants", []) if pid != user_id), None)
+        other_user = None
+        if other_id:
+            try:
+                other_user = await db.users.find_one({"_id": ObjectId(other_id)})
+            except Exception:
+                other_user = None
+        other_name = None
+        if other_user:
+            if other_user.get("role") == "doctor":
+                other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+            else:
+                other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+        threads.append(
+            {
+                "_id": str(convo.get("_id")),
+                "title": other_name or "Conversation",
+                "updated_at": convo.get("updated_at"),
+            }
+        )
+
     return templates.TemplateResponse(
-        "messages.html", await build_context(request, threads=[], conversation=None)
+        "messages.html",
+        await build_context(request, threads=threads, conversation=None, messages=[]),
     )
 
 
@@ -259,12 +309,119 @@ async def message_thread(request: Request, thread_id: str):
     user = await get_user_from_request(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
-    conversation = {
-        "thread_id": thread_id,
-    }
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        convo_oid = ObjectId(thread_id)
+    except Exception:
+        return RedirectResponse(url="/messages", status_code=303)
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return RedirectResponse(url="/messages", status_code=303)
+
+    threads = []
+    cursor_threads = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
+    async for t in cursor_threads:
+        other_id = next((pid for pid in t.get("participants", []) if pid != user_id), None)
+        other_user = None
+        if other_id:
+            try:
+                other_user = await db.users.find_one({"_id": ObjectId(other_id)})
+            except Exception:
+                other_user = None
+        other_name = None
+        if other_user:
+            if other_user.get("role") == "doctor":
+                other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+            else:
+                other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+        threads.append({"_id": str(t.get("_id")), "title": other_name or "Conversation"})
+
+    messages = []
+    cursor_msgs = db.messages.find({"conversation_id": str(convo_oid)}).sort("created_at", 1)
+    async for msg in cursor_msgs:
+        messages.append(
+            {
+                "sender_id": msg.get("sender_id"),
+                "text": _decrypt_text(msg.get("ciphertext") or ""),
+                "created_at": msg.get("created_at"),
+                "is_me": msg.get("sender_id") == user_id,
+            }
+        )
+
+    conversation = {"_id": str(convo_oid)}
     return templates.TemplateResponse(
-        "messages.html", await build_context(request, threads=[], conversation=conversation)
+        "messages.html",
+        await build_context(request, threads=threads, conversation=conversation, messages=messages),
     )
+
+
+@router.post("/messages/{thread_id}/send")
+async def send_message(request: Request, thread_id: str, text: str = Form("")):
+    user = await get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    message = (text or "").strip()
+    if not message:
+        return RedirectResponse(url=f"/messages/{thread_id}", status_code=303)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        convo_oid = ObjectId(thread_id)
+    except Exception:
+        return RedirectResponse(url="/messages", status_code=303)
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return RedirectResponse(url="/messages", status_code=303)
+
+    now = datetime.utcnow()
+    await db.messages.insert_one(
+        {
+            "conversation_id": str(convo_oid),
+            "sender_id": user_id,
+            "ciphertext": _encrypt_text(message),
+            "created_at": now,
+        }
+    )
+    await db.conversations.update_one({"_id": convo_oid}, {"$set": {"updated_at": now}})
+    return RedirectResponse(url=f"/messages/{thread_id}", status_code=303)
+
+
+@router.get("/messages/start/{doctor_id}")
+async def start_message(request: Request, doctor_id: str):
+    user = await get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        doctor_oid = ObjectId(doctor_id)
+    except Exception:
+        return RedirectResponse(url="/doctors", status_code=303)
+
+    doctor = await db.users.find_one({"_id": doctor_oid, "role": "doctor"})
+    if not doctor:
+        return RedirectResponse(url="/doctors", status_code=303)
+
+    participants = sorted([user_id, str(doctor_oid)])
+    existing = await db.conversations.find_one({"participants": participants})
+    if existing:
+        return RedirectResponse(url=f"/messages/{existing['_id']}", status_code=303)
+
+    now = datetime.utcnow()
+    result = await db.conversations.insert_one(
+        {
+            "participants": participants,
+            "created_at": now,
+            "updated_at": now,
+        }
+    )
+    return RedirectResponse(url=f"/messages/{result.inserted_id}", status_code=303)
 
 
 @router.get("/admin", response_class=HTMLResponse)

@@ -542,7 +542,11 @@ document.addEventListener("DOMContentLoaded", () => {
         selectedRating = 0;
         if (reviewDoctor) reviewDoctor.textContent = card.dataset.doctorName || "";
         if (reviewMessage) reviewMessage.value = "";
-        if (reviewMessageBtn) reviewMessageBtn.textContent = "Send message";
+        if (reviewMessageBtn) {
+          reviewMessageBtn.textContent = "Send message";
+          const doctorId = card.dataset.doctorId;
+          reviewMessageBtn.href = doctorId ? `/messages/start/${doctorId}` : "/messages";
+        }
         reviewDialog.showModal();
       });
     });

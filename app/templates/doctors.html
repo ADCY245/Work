@@ -39,7 +39,7 @@
   </article>
   {% else %}
   {% for doctor in doctors %}
-  <article class="card doctor-card" data-doctor-card data-doctor-name="{{ doctor.name }}" data-doctor-specialization="{{ doctor.specialization }}" data-doctor-description="{{ doctor.description or '' }}">
+  <article class="card doctor-card" data-doctor-card data-doctor-id="{{ doctor._id }}" data-doctor-name="{{ doctor.name }}" data-doctor-specialization="{{ doctor.specialization }}" data-doctor-description="{{ doctor.description or '' }}">
     <header>
       <img src="{{ doctor.avatar_url }}" alt="{{ doctor.name }}" />
       <div>
@@ -65,7 +65,7 @@
       <p><strong>Preferred PIN:</strong> {{ doctor.preferred_pin or 'N/A' }}</p>
     </div>
     <div class="actions">
-      <a class="btn ghost" href="/messages">Send message</a>
+      <a class="btn ghost" href="/messages/start/{{ doctor._id }}">Send message</a>
       <button class="btn primary" type="button" data-open-review>Review</button>
     </div>
   </article>
@@ -97,13 +97,13 @@
       <button class="kebab-item" type="button" data-star="4">★</button>
       <button class="kebab-item" type="button" data-star="5">★</button>
     </div>
-    <div class="modal-actions">
-     label style="text-align:left;">
+    <label style="text-align:left;">
       Message (optional)
-      <textarea rows="3"  ata-rev<ew-message></textarea>
+      <textarea rows="3" data-review-message></textarea>
     </label>
-    <dibutton class="btn pris">
-      <a class="btn secondary" href="/memsagesa data-review-message-btn>Send message</ary" type="button" data-submit-review>Submit</button>
+    <div class="modal-actions">
+      <a class="btn secondary" href="/messages" data-review-message-btn>Send message</a>
+      <button class="btn primary" type="button" data-submit-review>Submit</button>
       <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
     </div>
   </div>

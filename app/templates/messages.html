@@ -11,33 +11,55 @@
     <a class="btn secondary" href="/doctors">Discover doctors for consultation</a>
   </div>
 
-  {% if conversation %}
-  <div class="card" style="padding:1.25rem;">
-    <h3>Conversation</h3>
-    <p class="muted">Chat threads are under construction. Thread id: {{ conversation.thread_id }}</p>
-    <div class="hero-cta" style="margin-top: 1rem;">
-      <a class="btn secondary" href="/messages">Back to inbox</a>
+  <div style="display:grid; grid-template-columns: 320px 1fr; gap: 1rem;">
+    <div class="card" style="padding: 1rem;">
+      <h3 style="margin-top:0;">Inbox</h3>
+      {% if threads and threads|length %}
+        <div class="threads" style="margin-top: 0.75rem; display:flex; flex-direction:column; gap:0.5rem;">
+          {% for thread in threads %}
+            <a class="card" style="padding:0.75rem; text-decoration:none;" href="/messages/{{ thread._id }}">
+              <strong style="display:block; color: inherit;">{{ thread.title }}</strong>
+              <span class="muted small">Open conversation</span>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="muted">No messages yet.</p>
+        <a class="btn primary" href="/doctors">Discover doctors for consultation</a>
+      {% endif %}
+    </div>
+
+    <div class="card" style="padding: 1rem;">
+      {% if conversation %}
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem;">
+          <h3 style="margin:0;">Conversation</h3>
+          <a class="btn secondary" href="/messages">Back</a>
+        </div>
+        <div style="margin-top: 0.75rem; display:flex; flex-direction:column; gap:0.5rem; max-height: 52vh; overflow:auto;">
+          {% for msg in messages %}
+            {% if msg.is_me %}
+            <div style="display:flex; justify-content: flex-end;">
+            {% else %}
+            <div style="display:flex; justify-content: flex-start;">
+            {% endif %}
+              <div class="card" style="padding:0.6rem 0.75rem; max-width: 70%;">
+                <div style="white-space: pre-wrap;">{{ msg.text }}</div>
+              </div>
+            </div>
+          {% endfor %}
+          {% if not messages or messages|length == 0 %}
+            <p class="muted">No messages yet. Send the first one.</p>
+          {% endif %}
+        </div>
+        <form method="post" action="/messages/{{ conversation._id }}/send" style="margin-top: 0.75rem; display:flex; gap:0.5rem;">
+          <input name="text" type="text" placeholder="Type a message" style="flex:1;" />
+          <button class="btn primary" type="submit">Send</button>
+        </form>
+      {% else %}
+        <h3 style="margin-top:0;">Select a conversation</h3>
+        <p class="muted">Choose a thread from the inbox, or start one from the doctors page.</p>
+      {% endif %}
     </div>
   </div>
-  {% elif threads and threads|length %}
-  <div class="threads">
-    {% for thread in threads %}
-    <article class="thread-card">
-      <h3>{{ thread.doctor or thread.patient }}</h3>
-      <p>{{ thread.last_message }}</p>
-      <p class="timestamp">{{ thread.timestamp }}</p>
-      <div class="hero-cta" style="margin-top: 1rem;">
-        <a class="btn primary" href="/messages/{{ loop.index0 }}">Open conversation</a>
-      </div>
-    </article>
-    {% endfor %}
-  </div>
-  {% else %}
-  <div class="empty-state">
-    <h3>No messages yet</h3>
-    <p>Once you connect with a physiotherapist, all your chats will show up here. Until then, browse trusted doctors and start a conversation.</p>
-    <a class="btn primary" href="/doctors">Discover doctors for consultation</a>
-  </div>
-  {% endif %}
 </section>
 {% endblock %}
