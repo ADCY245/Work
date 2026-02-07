@@ -11,7 +11,15 @@
     <a class="btn secondary" href="/doctors">Discover doctors for consultation</a>
   </div>
 
-  {% if threads and threads|length %}
+  {% if conversation %}
+  <div class="card" style="padding:1.25rem;">
+    <h3>Conversation</h3>
+    <p class="muted">Chat threads are under construction. Thread id: {{ conversation.thread_id }}</p>
+    <div class="hero-cta" style="margin-top: 1rem;">
+      <a class="btn secondary" href="/messages">Back to inbox</a>
+    </div>
+  </div>
+  {% elif threads and threads|length %}
   <div class="threads">
     {% for thread in threads %}
     <article class="thread-card">

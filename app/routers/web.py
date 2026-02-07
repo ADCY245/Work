@@ -212,6 +212,8 @@ async def profile(
         "doctor_verification_status": user.get("doctor_verification_status"),
         "city": user.get("city"),
         "preferred_pin": user.get("preferred_pin"),
+        "admin_last_action": user.get("admin_last_action"),
+        "admin_last_reason": user.get("admin_last_reason"),
     }
 
     documents = user.get("documents", {})
@@ -243,9 +245,25 @@ async def profile(
 
 @router.get("/messages", response_class=HTMLResponse)
 async def messages(request: Request):
+    user = await get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
     # Placeholder until real messaging backend exists. Render empty state when no threads.
     return templates.TemplateResponse(
-        "messages.html", await build_context(request, threads=[])
+        "messages.html", await build_context(request, threads=[], conversation=None)
+    )
+
+
+@router.get("/messages/{thread_id}", response_class=HTMLResponse)
+async def message_thread(request: Request, thread_id: str):
+    user = await get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    conversation = {
+        "thread_id": thread_id,
+    }
+    return templates.TemplateResponse(
+        "messages.html", await build_context(request, threads=[], conversation=conversation)
     )
 
 

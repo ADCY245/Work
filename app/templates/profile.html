@@ -18,6 +18,12 @@
   </div>
   {% endif %}
 
+  {% if is_doctor and profile.admin_last_reason and profile.doctor_verification_status != 'verified' %}
+  <div class="alert warn">
+    <strong>Admin note:</strong> {{ profile.admin_last_reason }}
+  </div>
+  {% endif %}
+
   {% if location_updated %}
   <div class="alert success">Practice location updated successfully.</div>
   {% elif location_error %}
@@ -83,9 +89,12 @@
       <p>{{ profile.license }}</p>
     </div>
     {% endif %}
-    {% if is_doctor and profile.description %}
+      {% if is_doctor and profile.description %}
     <div style="grid-column: 1 / -1;">
-      <p class="label">Description</p>
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem;">
+        <p class="label">Description</p>
+        <button class="icon-btn" type="button" aria-label="Edit description" data-description-edit>&#9998;</button>
+      </div>
       <p>{{ profile.description }}</p>
     </div>
     {% endif %}
@@ -257,6 +266,29 @@
         </label>
         <div class="modal-actions">
           <button class="btn primary" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
+  {% endif %}
+
+  {% if is_doctor and profile.description %}
+  <dialog id="descriptionEditDialog" class="modal">
+    <div class="modal-body">
+      <div class="modal-header">
+        <h2>Edit description</h2>
+        <form method="dialog">
+          <button class="lightbox-close" type="submit" aria-label="Close">&times;</button>
+        </form>
+      </div>
+      <form class="stack" method="post" action="/api/auth/doctor/update-description">
+        <label>
+          Description
+          <textarea name="description" rows="4" required>{{ profile.description }}</textarea>
+        </label>
+        <div class="modal-actions">
+          <button class="btn primary" type="submit">Save</button>
+          <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
         </div>
       </form>
     </div>

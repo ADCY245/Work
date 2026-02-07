@@ -39,12 +39,11 @@
   </article>
   {% else %}
   {% for doctor in doctors %}
-  <article class="card doctor-card" data-doctor-card data-doctor-name="{{ doctor.name }}" data-doctor-description="{{ doctor.description or '' }}">
+  <article class="card doctor-card" data-doctor-card data-doctor-name="{{ doctor.name }}" data-doctor-specialization="{{ doctor.specialization }}" data-doctor-description="{{ doctor.description or '' }}">
     <header>
       <img src="{{ doctor.avatar_url }}" alt="{{ doctor.name }}" />
       <div>
-        <h3>{{ doctor.name }}</h3>
-        <span class="badge">{{ doctor.specialization }}</span>
+        <h3>{{ doctor.name }} - {{ doctor.specialization }}</h3>
         <div class="doctor-rating" aria-label="Doctor rating">
           <span class="stars" data-stars>★★★★★</span>
           <span class="small" data-review-count>(0)</span>
@@ -99,7 +98,12 @@
       <button class="kebab-item" type="button" data-star="5">★</button>
     </div>
     <div class="modal-actions">
-      <button class="btn primary" type="button" data-submit-review>Submit</button>
+     label style="text-align:left;">
+      Message (optional)
+      <textarea rows="3"  ata-rev<ew-message></textarea>
+    </label>
+    <dibutton class="btn pris">
+      <a class="btn secondary" href="/memsagesa data-review-message-btn>Send message</ary" type="button" data-submit-review>Submit</button>
       <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
     </div>
   </div>

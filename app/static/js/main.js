@@ -480,6 +480,18 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const initDescriptionEditor = () => {
+    const dialog = document.getElementById("descriptionEditDialog");
+    if (!dialog) return;
+    document.querySelectorAll("[data-description-edit]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (typeof dialog.showModal === "function") {
+          dialog.showModal();
+        }
+      });
+    });
+  };
+
   const initDoctorCards = () => {
     if (!document.querySelector("[data-doctor-card]")) return;
 
@@ -491,6 +503,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const reviewDoctor = reviewDialog?.querySelector("[data-review-doctor]");
     const reviewStars = reviewDialog?.querySelector("[data-review-stars]");
     const submitReview = reviewDialog?.querySelector("[data-submit-review]");
+    const reviewMessage = reviewDialog?.querySelector("[data-review-message]");
+    const reviewMessageBtn = reviewDialog?.querySelector("[data-review-message-btn]");
 
     let activeCard = null;
     let selectedRating = 0;
@@ -527,6 +541,8 @@ document.addEventListener("DOMContentLoaded", () => {
         activeCard = card;
         selectedRating = 0;
         if (reviewDoctor) reviewDoctor.textContent = card.dataset.doctorName || "";
+        if (reviewMessage) reviewMessage.value = "";
+        if (reviewMessageBtn) reviewMessageBtn.textContent = "Send message";
         reviewDialog.showModal();
       });
     });
@@ -728,6 +744,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAdminActions();
   initLicenseRequiredPrompt();
   initDescriptionRequiredPrompt();
+  initDescriptionEditor();
   initDoctorCards();
   initAdminKebabMenus();
 });
