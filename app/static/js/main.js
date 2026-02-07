@@ -562,9 +562,23 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     let lastSeen = null;
+    const seen = new Set();
+
+    if (messagesList) {
+      messagesList.querySelectorAll("[data-created-at]").forEach((node) => {
+        const key = node.dataset.createdAt;
+        if (key) seen.add(key);
+      });
+    }
+
     const appendMessages = (msgs) => {
       if (!messagesList) return;
       msgs.forEach((m) => {
+        const seenKey = m.created_at ? `${m.created_at}|${m.sender_id}|${m.text}` : null;
+        if (seenKey && seen.has(seenKey)) {
+          return;
+        }
+
         const row = document.createElement("div");
         row.style.display = "flex";
         row.style.justifyContent = m.is_me ? "flex-end" : "flex-start";
@@ -582,6 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
         row.appendChild(bubble);
         messagesList.appendChild(row);
 
+        if (seenKey) seen.add(seenKey);
         if (m.created_at) lastSeen = m.created_at;
       });
       messagesList.scrollTop = messagesList.scrollHeight;

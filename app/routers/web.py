@@ -101,7 +101,7 @@ def _decrypt_text(token: str) -> str:
 def _iso(dt: datetime | None) -> str | None:
     if not dt:
         return None
-    return dt.replace(microsecond=0).isoformat() + "Z"
+    return dt.isoformat() + "Z"
 
 
 def _read_key(user_id: str) -> str:
@@ -117,6 +117,40 @@ async def _compute_unread_count(db, conversation: dict, user_id: str) -> int:
     if last_read_at:
         query["created_at"] = {"$gt": last_read_at}
     return await db.messages.count_documents(query)
+
+
+def _is_messaging_restricted(user: dict | None) -> bool:
+    if not user:
+        return True
+    if user.get("restricted"):
+        return True
+    if user.get("role") == "doctor" and user.get("doctor_verification_status") != "verified":
+        return True
+    return False
+
+
+async def _get_admin_user(db):
+    admin_emails = [e.strip().lower() for e in (settings.admin_emails or []) if e]
+    query = {"$or": [{"is_admin": True}]}
+    if admin_emails:
+        query["$or"].append({"email": {"$in": admin_emails}})
+    return await db.users.find_one(query)
+
+
+async def _ensure_admin_conversation(db, user_id: str) -> str | None:
+    admin_user = await _get_admin_user(db)
+    if not admin_user:
+        return None
+    admin_id = str(admin_user.get("_id"))
+    participants = sorted([user_id, admin_id])
+    existing = await db.conversations.find_one({"participants": participants})
+    if existing:
+        return str(existing.get("_id"))
+    now = datetime.utcnow()
+    result = await db.conversations.insert_one(
+        {"participants": participants, "created_at": now, "updated_at": now}
+    )
+    return str(result.inserted_id)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -297,7 +331,18 @@ async def messages(request: Request):
     user_id = str(user.get("_id"))
     threads = []
 
-    cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
+    restricted_mode = _is_messaging_restricted(user)
+    allowed_participants = None
+    if restricted_mode:
+        admin_user = await _get_admin_user(db)
+        if admin_user:
+            allowed_participants = sorted([user_id, str(admin_user.get("_id"))])
+
+    convo_query = {"participants": user_id}
+    if allowed_participants:
+        convo_query = {"participants": allowed_participants}
+
+    cursor = db.conversations.find(convo_query).sort("updated_at", -1)
     async for convo in cursor:
         other_id = next((pid for pid in convo.get("participants", []) if pid != user_id), None)
         other_user = None
@@ -345,13 +390,30 @@ async def message_thread(request: Request, thread_id: str):
     if not convo:
         return RedirectResponse(url="/messages", status_code=303)
 
+    if _is_messaging_restricted(user):
+        admin_user = await _get_admin_user(db)
+        if not admin_user:
+            return RedirectResponse(url="/messages", status_code=303)
+        admin_id = str(admin_user.get("_id"))
+        if sorted(convo.get("participants", [])) != sorted([user_id, admin_id]):
+            admin_thread = await _ensure_admin_conversation(db, user_id)
+            if admin_thread:
+                return RedirectResponse(url=f"/messages/{admin_thread}", status_code=303)
+            return RedirectResponse(url="/messages", status_code=303)
+
     await db.conversations.update_one(
         {"_id": convo_oid},
         {"$set": {_read_key(user_id): datetime.utcnow()}},
     )
 
     threads = []
-    cursor_threads = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
+    convo_query = {"participants": user_id}
+    if _is_messaging_restricted(user):
+        admin_user = await _get_admin_user(db)
+        if admin_user:
+            convo_query = {"participants": sorted([user_id, str(admin_user.get('_id'))])}
+
+    cursor_threads = db.conversations.find(convo_query).sort("updated_at", -1)
     async for t in cursor_threads:
         other_id = next((pid for pid in t.get("participants", []) if pid != user_id), None)
         other_user = None
@@ -402,7 +464,13 @@ async def api_unread(request: Request):
     db = get_database()
     user_id = str(user.get("_id"))
     total = 0
-    cursor = db.conversations.find({"participants": user_id})
+    convo_query = {"participants": user_id}
+    if _is_messaging_restricted(user):
+        admin_user = await _get_admin_user(db)
+        if admin_user:
+            convo_query = {"participants": sorted([user_id, str(admin_user.get('_id'))])}
+
+    cursor = db.conversations.find(convo_query)
     async for convo in cursor:
         total += await _compute_unread_count(db, convo, user_id)
     return JSONResponse({"unread": total})
@@ -417,7 +485,13 @@ async def api_threads(request: Request):
     db = get_database()
     user_id = str(user.get("_id"))
     threads = []
-    cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
+    convo_query = {"participants": user_id}
+    if _is_messaging_restricted(user):
+        admin_user = await _get_admin_user(db)
+        if admin_user:
+            convo_query = {"participants": sorted([user_id, str(admin_user.get('_id'))])}
+
+    cursor = db.conversations.find(convo_query).sort("updated_at", -1)
     async for convo in cursor:
         other_id = next((pid for pid in convo.get("participants", []) if pid != user_id), None)
         other_user = None
@@ -461,6 +535,14 @@ async def api_messages_since(request: Request, thread_id: str, after: str | None
     if not convo:
         return JSONResponse({"messages": []}, status_code=403)
 
+    if _is_messaging_restricted(user):
+        admin_user = await _get_admin_user(db)
+        if not admin_user:
+            return JSONResponse({"messages": []}, status_code=403)
+        admin_id = str(admin_user.get("_id"))
+        if sorted(convo.get("participants", [])) != sorted([user_id, admin_id]):
+            return JSONResponse({"messages": []}, status_code=403)
+
     query = {"conversation_id": str(convo_oid)}
     if after:
         try:
@@ -501,6 +583,14 @@ async def api_mark_read(request: Request, thread_id: str):
     if not convo:
         return JSONResponse({"ok": False}, status_code=403)
 
+    if _is_messaging_restricted(user):
+        admin_user = await _get_admin_user(db)
+        if not admin_user:
+            return JSONResponse({"ok": False}, status_code=403)
+        admin_id = str(admin_user.get("_id"))
+        if sorted(convo.get("participants", [])) != sorted([user_id, admin_id]):
+            return JSONResponse({"ok": False}, status_code=403)
+
     await db.conversations.update_one(
         {"_id": convo_oid},
         {"$set": {_read_key(user_id): datetime.utcnow()}},
@@ -528,6 +618,17 @@ async def send_message(request: Request, thread_id: str, text: str = Form("")):
     if not convo:
         return RedirectResponse(url="/messages", status_code=303)
 
+    if _is_messaging_restricted(user):
+        admin_user = await _get_admin_user(db)
+        if not admin_user:
+            return RedirectResponse(url="/messages", status_code=303)
+        admin_id = str(admin_user.get("_id"))
+        if sorted(convo.get("participants", [])) != sorted([user_id, admin_id]):
+            admin_thread = await _ensure_admin_conversation(db, user_id)
+            if admin_thread:
+                return RedirectResponse(url=f"/messages/{admin_thread}", status_code=303)
+            return RedirectResponse(url="/messages", status_code=303)
+
     now = datetime.utcnow()
     await db.messages.insert_one(
         {
@@ -547,6 +648,9 @@ async def start_message(request: Request, doctor_id: str):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
+    if _is_messaging_restricted(user):
+        return RedirectResponse(url="/messages/start-admin", status_code=303)
+
     db = get_database()
     user_id = str(user.get("_id"))
     try:
@@ -557,6 +661,9 @@ async def start_message(request: Request, doctor_id: str):
     doctor = await db.users.find_one({"_id": doctor_oid, "role": "doctor"})
     if not doctor:
         return RedirectResponse(url="/doctors", status_code=303)
+
+    if doctor.get("restricted") or doctor.get("doctor_verification_status") != "verified":
+        return RedirectResponse(url="/messages/start-admin", status_code=303)
 
     participants = sorted([user_id, str(doctor_oid)])
     existing = await db.conversations.find_one({"participants": participants})
@@ -572,6 +679,18 @@ async def start_message(request: Request, doctor_id: str):
         }
     )
     return RedirectResponse(url=f"/messages/{result.inserted_id}", status_code=303)
+
+
+@router.get("/messages/start-admin")
+async def start_admin_message(request: Request):
+    user = await get_user_from_request(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    db = get_database()
+    thread_id = await _ensure_admin_conversation(db, str(user.get("_id")))
+    if not thread_id:
+        return RedirectResponse(url="/messages", status_code=303)
+    return RedirectResponse(url=f"/messages/{thread_id}", status_code=303)
 
 
 @router.get("/admin", response_class=HTMLResponse)
