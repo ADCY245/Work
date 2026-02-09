@@ -125,8 +125,19 @@ def _is_messaging_restricted(user: dict | None) -> bool:
         return True
     if user.get("restricted"):
         return True
-    if user.get("role") == "doctor" and user.get("doctor_verification_status") != "verified":
-        return True
+
+    role = str(user.get("role") or "").strip().lower()
+    if role == "doctor":
+        raw_status = (
+            user.get("doctor_verification_status")
+            if user.get("doctor_verification_status") is not None
+            else user.get("status")
+        )
+        if raw_status is None:
+            raw_status = user.get("verification_status")
+        status = str(raw_status or "").strip().lower()
+        if status != "verified":
+            return True
     return False
 
 
@@ -137,7 +148,13 @@ def _admin_emails() -> list[str]:
 
 async def _get_admin_users(db, ensure_mailboxes: bool = True) -> list[dict]:
     admin_emails = _admin_emails()
-    query = {"$or": [{"is_admin": True}]}
+    query = {
+        "$or": [
+            {"is_admin": True},
+            {"is_admin": {"$in": [1, "1", "true", "True", "TRUE"]}},
+            {"role": {"$in": ["admin", "Admin", "ADMIN"]}},
+        ]
+    }
     if admin_emails:
         query["$or"].append({"email": {"$in": admin_emails}})
 
@@ -178,8 +195,8 @@ async def _get_admin_ids(db) -> set[str]:
 
 
 def _is_admin_only_conversation(convo: dict, user_id: str, admin_ids: set[str]) -> bool:
-    participants = convo.get("participants") or []
-    other_ids = [pid for pid in participants if pid != user_id]
+    participants = [str(pid) for pid in (convo.get("participants") or [])]
+    other_ids = [pid for pid in participants if pid != str(user_id)]
     if not other_ids:
         return False
     return all(pid in admin_ids for pid in other_ids)
@@ -189,8 +206,12 @@ async def _ensure_admin_conversation(db, user_id: str) -> str | None:
     admin_ids = sorted(_id for _id in (await _get_admin_ids(db)) if _id)
     if not admin_ids:
         return None
-    participants = sorted([user_id, *admin_ids])
+    participants = sorted([str(user_id), *[str(a) for a in admin_ids]])
     existing = await db.conversations.find_one({"participants": participants})
+    if not existing:
+        existing = await db.conversations.find_one(
+            {"participants": {"$all": participants}, "$expr": {"$eq": [{"$size": "$participants"}, len(participants)]}}
+        )
     if existing:
         return str(existing.get("_id"))
     now = datetime.utcnow()
@@ -385,7 +406,10 @@ async def messages(request: Request):
     async for convo in cursor:
         if restricted_mode and not _is_admin_only_conversation(convo, user_id, admin_ids):
             continue
-        other_id = next((pid for pid in convo.get("participants", []) if pid != user_id), None)
+        other_id = next(
+            (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
+            None,
+        )
         other_user = None
         if other_id:
             try:
@@ -452,7 +476,10 @@ async def message_thread(request: Request, thread_id: str):
     async for t in cursor_threads:
         if restricted_mode and not _is_admin_only_conversation(t, user_id, admin_ids):
             continue
-        other_id = next((pid for pid in t.get("participants", []) if pid != user_id), None)
+        other_id = next(
+            (str(pid) for pid in (t.get("participants", []) or []) if str(pid) != str(user_id)),
+            None,
+        )
         other_user = None
         if other_id:
             try:
@@ -528,7 +555,10 @@ async def api_threads(request: Request):
     async for convo in cursor:
         if restricted_mode and not _is_admin_only_conversation(convo, user_id, admin_ids):
             continue
-        other_id = next((pid for pid in convo.get("participants", []) if pid != user_id), None)
+        other_id = next(
+            (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
+            None,
+        )
         other_user = None
         if other_id:
             try:
