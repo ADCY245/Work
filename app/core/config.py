@@ -43,6 +43,7 @@ class Settings(BaseSettings):
     admin_emails: list[str] = Field(
         default_factory=lambda: [
             "info@physihome.shop",
+            "info@physihome.com",
             "athulnair3096@gmail.com",
         ],
         alias="ADMIN_EMAILS",
