@@ -757,6 +757,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const detailsDialog = document.getElementById("adminDoctorDetailsDialog");
     const reasonDialog = document.getElementById("adminReasonDialog");
     const reasonForm = reasonDialog?.querySelector("[data-admin-reason-form]");
+    const roleDialog = document.getElementById("adminRoleDialog");
+    const roleForm = roleDialog?.querySelector("[data-admin-role-form]");
 
     const fillDetails = (menu) => {
       if (!detailsDialog) return;
@@ -799,6 +801,19 @@ document.addEventListener("DOMContentLoaded", () => {
       reasonDialog.showModal();
     };
 
+    const openRoleDialog = (menu) => {
+      if (!roleDialog || typeof roleDialog.showModal !== "function" || !roleForm) return;
+      const title = roleDialog.querySelector("[data-admin-role-title]");
+      if (title) {
+        const name = menu.dataset.userName || "User";
+        title.textContent = `Change role: ${name}`;
+      }
+      roleForm.elements.user_id.value = menu.dataset.userId;
+      const current = (menu.dataset.userRole || "user").toLowerCase();
+      roleForm.elements.role.value = current;
+      roleDialog.showModal();
+    };
+
     document.addEventListener("click", (event) => {
       const btn = event.target?.closest("[data-kebab-btn]");
       if (btn) {
@@ -817,6 +832,25 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     document.querySelectorAll("[data-kebab-menu]").forEach((menu) => {
+      menu.querySelector("[data-admin-role]")?.addEventListener("click", () => {
+        menu.setAttribute("hidden", "");
+        openRoleDialog(menu);
+      });
+
+      menu.querySelector("[data-admin-delete]")?.addEventListener("click", async () => {
+        menu.setAttribute("hidden", "");
+        const name = menu.dataset.userName || "this user";
+        const ok = window.confirm(`Remove ${name}? This deletes the account and chats.`);
+        if (!ok) return;
+        const response = await fetch("/api/auth/admin/delete-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: menu.dataset.userId }),
+        });
+        if (response.ok) window.location.reload();
+        else alert((await response.text()) || "Could not delete user.");
+      });
+
       menu.querySelector("[data-admin-view]")?.addEventListener("click", () => {
         fillDetails(menu);
         detailsDialog?.showModal?.();
@@ -875,6 +909,23 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.reload();
       } else {
         alert((await response.text()) || "Request failed");
+      }
+    });
+
+    roleForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const userId = form.elements.user_id.value;
+      const role = form.elements.role.value;
+      const response = await fetch("/api/auth/admin/update-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, role }),
+      });
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        alert((await response.text()) || "Could not update role.");
       }
     });
   };

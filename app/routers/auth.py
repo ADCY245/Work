@@ -941,3 +941,79 @@ async def restrict_doctor(request: Request, payload: dict[str, Any] = Body(...))
         },
     )
     return {"status": "restricted"}
+
+
+@router.post("/admin/update-role")
+async def admin_update_role(request: Request, payload: dict[str, Any] = Body(...)):
+    user = await get_user_from_request(request)
+    if not user or not user.get("is_admin"):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+    db = get_database()
+    user_id = payload.get("user_id")
+    role = (payload.get("role") or "").strip().lower()
+    if not user_id:
+        return JSONResponse({"error": "user_id is required"}, status_code=400)
+    if not role:
+        return JSONResponse({"error": "role is required"}, status_code=400)
+    if role not in {"user", "doctor", "admin"}:
+        return JSONResponse({"error": "invalid role"}, status_code=400)
+    try:
+        oid = ObjectId(str(user_id))
+    except Exception:
+        return JSONResponse({"error": "Invalid user_id"}, status_code=400)
+    if str(user.get("_id")) == str(oid):
+        return JSONResponse({"error": "Cannot change your own role"}, status_code=400)
+
+    target = await db.users.find_one({"_id": oid})
+    if not target:
+        return JSONResponse({"error": "User not found"}, status_code=404)
+
+    update_fields: dict[str, Any] = {"role": role}
+    if role == "admin":
+        update_fields["is_admin"] = True
+    else:
+        update_fields["is_admin"] = False
+    if role == "doctor":
+        if target.get("doctor_verification_status") is None:
+            update_fields["doctor_verification_status"] = "pending"
+
+    await db.users.update_one({"_id": oid}, {"$set": update_fields})
+    return {"status": "updated"}
+
+
+@router.post("/admin/delete-user")
+async def admin_delete_user(request: Request, payload: dict[str, Any] = Body(...)):
+    user = await get_user_from_request(request)
+    if not user or not user.get("is_admin"):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+    db = get_database()
+    user_id = payload.get("user_id")
+    if not user_id:
+        return JSONResponse({"error": "user_id is required"}, status_code=400)
+    try:
+        oid = ObjectId(str(user_id))
+    except Exception:
+        return JSONResponse({"error": "Invalid user_id"}, status_code=400)
+    if str(user.get("_id")) == str(oid):
+        return JSONResponse({"error": "Cannot delete your own account"}, status_code=400)
+
+    target = await db.users.find_one({"_id": oid})
+    if not target:
+        return JSONResponse({"error": "User not found"}, status_code=404)
+
+    if target.get("is_admin") or (target.get("role") or "").strip().lower() == "admin":
+        admin_count = await db.users.count_documents(
+            {"$or": [{"is_admin": True}, {"role": {"$in": ["admin", "Admin", "ADMIN"]}}]}
+        )
+        if admin_count <= 1:
+            return JSONResponse({"error": "Cannot delete the last admin"}, status_code=400)
+
+    convo_ids = []
+    async for convo in db.conversations.find({"participants": str(oid)}):
+        convo_ids.append(str(convo.get("_id")))
+    if convo_ids:
+        await db.messages.delete_many({"conversation_id": {"$in": convo_ids}})
+        await db.conversations.delete_many({"_id": {"$in": [ObjectId(cid) for cid in convo_ids]}})
+
+    await db.users.delete_one({"_id": oid})
+    return {"status": "deleted"}

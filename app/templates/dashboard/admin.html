@@ -24,6 +24,18 @@
             <h3>{{ u.name }}</h3>
             <p>{{ u.email }}</p>
           </div>
+          <div class="kebab">
+            <button class="kebab-btn" type="button" aria-label="User actions" data-kebab-btn>...</button>
+            <div class="kebab-menu" hidden data-kebab-menu
+              data-user-id="{{ u._id }}"
+              data-user-name="{{ u.name }}"
+              data-user-email="{{ u.email }}"
+              data-user-role="{{ u.role }}"
+            >
+              <button class="kebab-item" type="button" data-admin-role>Change role</button>
+              <button class="kebab-item" type="button" data-admin-delete>Remove user</button>
+            </div>
+          </div>
         </header>
         <p>Role: {{ u.role }}</p>
         {% if u.gender %}
@@ -52,7 +64,7 @@
             <p>{{ d.email }}</p>
           </div>
           <div class="kebab">
-            <button class="kebab-btn" type="button" aria-label="Doctor actions" data-kebab-btn>⋯</button>
+            <button class="kebab-btn" type="button" aria-label="Doctor actions" data-kebab-btn>...</button>
             <div class="kebab-menu" hidden data-kebab-menu
               data-doctor-id="{{ d._id }}"
               data-doctor-name="{{ d.name }}"
@@ -94,7 +106,7 @@
             <p>{{ p.email }}</p>
           </div>
           <div class="kebab">
-            <button class="kebab-btn" type="button" aria-label="Doctor actions" data-kebab-btn>⋯</button>
+            <button class="kebab-btn" type="button" aria-label="Doctor actions" data-kebab-btn>...</button>
             <div class="kebab-menu" hidden data-kebab-menu
               data-doctor-id="{{ p._id }}"
               data-doctor-name="{{ p.name }}"
@@ -194,6 +206,30 @@
       </label>
       <div class="modal-actions">
         <button class="btn primary" type="submit">Confirm</button>
+        <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
+<dialog id="adminRoleDialog" class="modal">
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2 data-admin-role-title>Change role</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <form class="stack" data-admin-role-form>
+      <input type="hidden" name="user_id" />
+      <label>
+        Role
+        <select name="role" required>
+          <option value="user">User</option>
+          <option value="doctor">Doctor</option>
+          <option value="admin">Admin</option>
+        </select>
+      </label>
+      <div class="modal-actions">
+        <button class="btn primary" type="submit">Update role</button>
         <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
       </div>
     </form>
