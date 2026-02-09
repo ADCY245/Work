@@ -191,30 +191,45 @@ async def _get_admin_users(db, ensure_mailboxes: bool = True) -> list[dict]:
     if ensure_mailboxes and admin_emails:
         now = datetime.utcnow()
         for email in admin_emails:
-            existing = await db.users.find_one({"email": re.compile(f"^{re.escape(email)}$", re.IGNORECASE)})
-            if existing:
-                await db.users.update_one(
-                    {"_id": existing.get("_id")},
-                    {"$set": {"is_admin": True, "email": email}},
-                )
+            email_clean = str(email or "").strip().lower()
+            if not email_clean:
                 continue
+
+            # Idempotent seed: prevent duplicate admin users by using upsert keyed on email (case-insensitive)
             password = secrets.token_urlsafe(16)
-            doc = {
-                "first_name": "Admin",
-                "last_name": "",
-                "dob": "1970-01-01",
-                "phone": email,
-                "email": email,
-                "password_hash": hash_password(password),
-                "role": "user",
-                "is_admin": True,
-                "gender": None,
-                "is_otp_verified": True,
-                "doctor_verification_status": None,
-                "has_logged_in": False,
-                "created_at": now,
-            }
-            await db.users.insert_one(doc)
+            filter_doc = {"email": re.compile(f"^{re.escape(email_clean)}$", re.IGNORECASE)}
+            await db.users.update_one(
+                filter_doc,
+                {
+                    "$set": {"is_admin": True, "email": email_clean},
+                    "$setOnInsert": {
+                        "first_name": "Admin",
+                        "last_name": "",
+                        "dob": "1970-01-01",
+                        "phone": email_clean,
+                        "password_hash": hash_password(password),
+                        "role": "user",
+                        "gender": None,
+                        "is_otp_verified": True,
+                        "doctor_verification_status": None,
+                        "has_logged_in": False,
+                        "created_at": now,
+                    },
+                },
+                upsert=True,
+            )
+
+            # Cleanup: if duplicates already exist in DB for the same email, keep the oldest and delete the rest.
+            dupes = (
+                await db.users.find(filter_doc)
+                .sort("created_at", 1)
+                .to_list(length=25)
+            )
+            if len(dupes) > 1:
+                keep_id = dupes[0].get("_id")
+                delete_ids = [d.get("_id") for d in dupes[1:] if d.get("_id") and d.get("_id") != keep_id]
+                if delete_ids:
+                    await db.users.delete_many({"_id": {"$in": delete_ids}})
 
         users = await db.users.find(query).to_list(length=50)
 
@@ -248,14 +263,15 @@ def _admin_broadcast_counterparty(
 async def _restricted_can_access_conversation(db, user: dict, convo: dict) -> bool:
     user_id = str(user.get("_id"))
     role = str(user.get("role") or "").strip().lower()
-    if role == "doctor":
-        return False
     participants = [str(pid) for pid in (convo.get("participants") or [])]
     other_ids = [pid for pid in participants if pid != user_id]
     if not other_ids:
         return False
 
     admin_ids = await _get_admin_ids(db)
+    # Restricted doctors may only access the admin broadcast conversation.
+    if role == "doctor":
+        return bool(admin_ids) and all(pid in admin_ids for pid in other_ids)
     if admin_ids and all(pid in admin_ids for pid in other_ids):
         return True
 
