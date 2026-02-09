@@ -220,6 +220,25 @@ async def _get_admin_ids(db) -> set[str]:
     return {str(a.get("_id")) for a in admins if a.get("_id")}
 
 
+def _admin_broadcast_counterparty(
+    convo: dict, user_id: str, admin_ids: set[str]
+) -> str | None:
+    participants = [str(pid) for pid in (convo.get("participants") or [])]
+    if not participants or not admin_ids:
+        return None
+    admin_participants = [pid for pid in participants if pid in admin_ids]
+    if not admin_participants:
+        return None
+    non_admin_participants = [pid for pid in participants if pid not in admin_ids]
+    if len(non_admin_participants) != 1:
+        return None
+    if user_id in admin_ids:
+        return non_admin_participants[0]
+    if user_id == non_admin_participants[0]:
+        return "__ADMIN__"
+    return None
+
+
 async def _restricted_can_access_conversation(db, user: dict, convo: dict) -> bool:
     user_id = str(user.get("_id"))
     participants = [str(pid) for pid in (convo.get("participants") or [])]
@@ -253,7 +272,7 @@ async def _ensure_admin_conversation(db, user_id: str) -> str | None:
     admin_ids = sorted(_id for _id in (await _get_admin_ids(db)) if _id)
     if not admin_ids:
         return None
-    participants = sorted([str(user_id), *[str(a) for a in admin_ids]])
+    participants = sorted(set([str(user_id), *[str(a) for a in admin_ids]]))
     existing = await db.conversations.find_one({"participants": participants})
     if not existing:
         existing = await db.conversations.find_one(
@@ -447,31 +466,31 @@ async def messages(request: Request):
     threads = []
 
     restricted_mode = _is_messaging_restricted(user)
-    admin_ids = await _get_admin_ids(db) if restricted_mode else set()
+    admin_ids = await _get_admin_ids(db)
 
     cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
     async for convo in cursor:
         if restricted_mode and not (await _restricted_can_access_conversation(db, user, convo)):
             continue
 
-        is_admin_thread = False
-        if restricted_mode:
-            is_admin_thread = True
-        elif admin_ids and _is_admin_only_conversation(convo, user_id, admin_ids):
-            is_admin_thread = True
-
-        other_id = next(
-            (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
-            None,
-        )
+        admin_counterparty = _admin_broadcast_counterparty(convo, user_id, admin_ids)
+        is_admin_thread = admin_counterparty is not None
+        other_id = None
+        if admin_counterparty and admin_counterparty != "__ADMIN__":
+            other_id = admin_counterparty
+        elif not is_admin_thread:
+            other_id = next(
+                (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
+                None,
+            )
         other_user = None
-        if other_id and not is_admin_thread:
+        if other_id:
             try:
                 other_user = await db.users.find_one({"_id": ObjectId(other_id)})
             except Exception:
                 other_user = None
         other_name = None
-        if is_admin_thread:
+        if admin_counterparty == "__ADMIN__":
             other_name = "Admin"
         elif other_user:
             if other_user.get("role") == "doctor":
@@ -525,31 +544,31 @@ async def message_thread(request: Request, thread_id: str):
 
     threads = []
     restricted_mode = _is_messaging_restricted(user)
-    admin_ids = await _get_admin_ids(db) if restricted_mode else set()
+    admin_ids = await _get_admin_ids(db)
 
     cursor_threads = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
     async for t in cursor_threads:
         if restricted_mode and not (await _restricted_can_access_conversation(db, user, t)):
             continue
 
-        is_admin_thread = False
-        if restricted_mode:
-            is_admin_thread = True
-        elif admin_ids and _is_admin_only_conversation(t, user_id, admin_ids):
-            is_admin_thread = True
-
-        other_id = next(
-            (str(pid) for pid in (t.get("participants", []) or []) if str(pid) != str(user_id)),
-            None,
-        )
+        admin_counterparty = _admin_broadcast_counterparty(t, user_id, admin_ids)
+        is_admin_thread = admin_counterparty is not None
+        other_id = None
+        if admin_counterparty and admin_counterparty != "__ADMIN__":
+            other_id = admin_counterparty
+        elif not is_admin_thread:
+            other_id = next(
+                (str(pid) for pid in (t.get("participants", []) or []) if str(pid) != str(user_id)),
+                None,
+            )
         other_user = None
-        if other_id and not is_admin_thread:
+        if other_id:
             try:
                 other_user = await db.users.find_one({"_id": ObjectId(other_id)})
             except Exception:
                 other_user = None
         other_name = None
-        if is_admin_thread:
+        if admin_counterparty == "__ADMIN__":
             other_name = "Admin"
         elif other_user:
             if other_user.get("role") == "doctor":
@@ -613,31 +632,31 @@ async def api_threads(request: Request):
     user_id = str(user.get("_id"))
     threads = []
     restricted_mode = _is_messaging_restricted(user)
-    admin_ids = await _get_admin_ids(db) if restricted_mode else set()
+    admin_ids = await _get_admin_ids(db)
 
     cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
     async for convo in cursor:
         if restricted_mode and not (await _restricted_can_access_conversation(db, user, convo)):
             continue
 
-        is_admin_thread = False
-        if restricted_mode:
-            is_admin_thread = True
-        elif admin_ids and _is_admin_only_conversation(convo, user_id, admin_ids):
-            is_admin_thread = True
-
-        other_id = next(
-            (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
-            None,
-        )
+        admin_counterparty = _admin_broadcast_counterparty(convo, user_id, admin_ids)
+        is_admin_thread = admin_counterparty is not None
+        other_id = None
+        if admin_counterparty and admin_counterparty != "__ADMIN__":
+            other_id = admin_counterparty
+        elif not is_admin_thread:
+            other_id = next(
+                (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
+                None,
+            )
         other_user = None
-        if other_id and not is_admin_thread:
+        if other_id:
             try:
                 other_user = await db.users.find_one({"_id": ObjectId(other_id)})
             except Exception:
                 other_user = None
         other_name = None
-        if is_admin_thread:
+        if admin_counterparty == "__ADMIN__":
             other_name = "Admin"
         elif other_user:
             if other_user.get("role") == "doctor":
@@ -787,7 +806,9 @@ async def start_message(request: Request, doctor_id: str):
     if not doctor:
         return RedirectResponse(url="/doctors", status_code=303)
 
-    if doctor.get("restricted") or doctor.get("doctor_verification_status") != "verified":
+    if not _is_admin_user(user) and (
+        doctor.get("restricted") or doctor.get("doctor_verification_status") != "verified"
+    ):
         return RedirectResponse(url="/messages/start-admin", status_code=303)
 
     participants = sorted([user_id, str(doctor_oid)])
