@@ -197,39 +197,58 @@ async def _get_admin_users(db, ensure_mailboxes: bool = True) -> list[dict]:
 
             # Idempotent seed: prevent duplicate admin users by using upsert keyed on email (case-insensitive)
             password = secrets.token_urlsafe(16)
-            filter_doc = {"email": re.compile(f"^{re.escape(email_clean)}$", re.IGNORECASE)}
-            await db.users.update_one(
-                filter_doc,
-                {
-                    "$set": {"is_admin": True, "email": email_clean},
-                    "$setOnInsert": {
-                        "first_name": "Admin",
-                        "last_name": "",
-                        "dob": "1970-01-01",
-                        "phone": email_clean,
-                        "password_hash": hash_password(password),
-                        "role": "user",
-                        "gender": None,
-                        "is_otp_verified": True,
-                        "doctor_verification_status": None,
-                        "has_logged_in": False,
-                        "created_at": now,
-                    },
-                },
-                upsert=True,
-            )
+            normalized_email_expr = {
+                "$expr": {
+                    "$eq": [
+                        {"$toLower": {"$trim": {"input": "$email"}}},
+                        email_clean,
+                    ]
+                }
+            }
 
-            # Cleanup: if duplicates already exist in DB for the same email, keep the oldest and delete the rest.
+            # Cleanup: if duplicates already exist in DB for the same email (ignoring whitespace/case),
+            # keep the oldest and delete the rest.
             dupes = (
-                await db.users.find(filter_doc)
+                await db.users.find(normalized_email_expr)
                 .sort("created_at", 1)
                 .to_list(length=25)
             )
-            if len(dupes) > 1:
+            if dupes:
                 keep_id = dupes[0].get("_id")
-                delete_ids = [d.get("_id") for d in dupes[1:] if d.get("_id") and d.get("_id") != keep_id]
+                if keep_id:
+                    await db.users.update_one(
+                        {"_id": keep_id},
+                        {"$set": {"is_admin": True, "email": email_clean}},
+                    )
+                delete_ids = [
+                    d.get("_id")
+                    for d in dupes[1:]
+                    if d.get("_id") and d.get("_id") != keep_id
+                ]
                 if delete_ids:
                     await db.users.delete_many({"_id": {"$in": delete_ids}})
+            else:
+                # No existing admin mailbox user for this email -> create one (idempotent)
+                await db.users.update_one(
+                    {"email": email_clean},
+                    {
+                        "$set": {"is_admin": True, "email": email_clean},
+                        "$setOnInsert": {
+                            "first_name": "Admin",
+                            "last_name": "",
+                            "dob": "1970-01-01",
+                            "phone": email_clean,
+                            "password_hash": hash_password(password),
+                            "role": "user",
+                            "gender": None,
+                            "is_otp_verified": True,
+                            "doctor_verification_status": None,
+                            "has_logged_in": False,
+                            "created_at": now,
+                        },
+                    },
+                    upsert=True,
+                )
 
         users = await db.users.find(query).to_list(length=50)
 
