@@ -569,6 +569,9 @@ async def message_thread(request: Request, thread_id: str):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
 
+    if thread_id == "start-admin":
+        return await start_admin_message(request)
+
     db = get_database()
     user_id = str(user.get("_id"))
     try:
