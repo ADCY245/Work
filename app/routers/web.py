@@ -247,6 +247,9 @@ def _admin_broadcast_counterparty(
 
 async def _restricted_can_access_conversation(db, user: dict, convo: dict) -> bool:
     user_id = str(user.get("_id"))
+    role = str(user.get("role") or "").strip().lower()
+    if role == "doctor":
+        return False
     participants = [str(pid) for pid in (convo.get("participants") or [])]
     other_ids = [pid for pid in participants if pid != user_id]
     if not other_ids:
@@ -264,6 +267,12 @@ async def _restricted_can_access_conversation(db, user: dict, convo: dict) -> bo
         if not _is_admin_user(other):
             return False
     return True
+
+
+def _restricted_access_error() -> dict:
+    return {
+        "error": "Please wait for admin to verify your account.",
+    }
 
 
 def _is_admin_only_conversation(convo: dict, user_id: str, admin_ids: set[str]) -> bool:
@@ -538,6 +547,19 @@ async def message_thread(request: Request, thread_id: str):
 
     if _is_messaging_restricted(user):
         if not (await _restricted_can_access_conversation(db, user, convo)):
+            role = str(user.get("role") or "").strip().lower()
+            if role == "doctor":
+                return templates.TemplateResponse(
+                    "messages.html",
+                    await build_context(
+                        request,
+                        threads=[],
+                        conversation=None,
+                        messages=[],
+                        error=_restricted_access_error()["error"],
+                    ),
+                    status_code=403,
+                )
             admin_thread = await _ensure_admin_conversation(db, user_id)
             if admin_thread:
                 return RedirectResponse(url=f"/messages/{admin_thread}", status_code=303)
@@ -700,6 +722,9 @@ async def api_messages_since(request: Request, thread_id: str, after: str | None
 
     if _is_messaging_restricted(user):
         if not (await _restricted_can_access_conversation(db, user, convo)):
+            role = str(user.get("role") or "").strip().lower()
+            if role == "doctor":
+                return JSONResponse(_restricted_access_error(), status_code=403)
             return JSONResponse({"messages": []}, status_code=403)
 
     query = {"conversation_id": str(convo_oid)}
@@ -743,6 +768,9 @@ async def api_mark_read(request: Request, thread_id: str):
 
     if _is_messaging_restricted(user):
         if not (await _restricted_can_access_conversation(db, user, convo)):
+            role = str(user.get("role") or "").strip().lower()
+            if role == "doctor":
+                return JSONResponse(_restricted_access_error(), status_code=403)
             return JSONResponse({"ok": False}, status_code=403)
 
     await db.conversations.update_one(
@@ -774,6 +802,19 @@ async def send_message(request: Request, thread_id: str, text: str = Form("")):
 
     if _is_messaging_restricted(user):
         if not (await _restricted_can_access_conversation(db, user, convo)):
+            role = str(user.get("role") or "").strip().lower()
+            if role == "doctor":
+                return templates.TemplateResponse(
+                    "messages.html",
+                    await build_context(
+                        request,
+                        threads=[],
+                        conversation=None,
+                        messages=[],
+                        error=_restricted_access_error()["error"],
+                    ),
+                    status_code=403,
+                )
             admin_thread = await _ensure_admin_conversation(db, user_id)
             if admin_thread:
                 return RedirectResponse(url=f"/messages/{admin_thread}", status_code=303)
