@@ -132,6 +132,12 @@ def _is_messaging_restricted(user: dict | None) -> bool:
     if user.get("restricted"):
         return True
 
+    raw_status_any = user.get("doctor_verification_status")
+    if raw_status_any is not None:
+        status_any = str(raw_status_any or "").strip().lower()
+        if status_any != "verified":
+            return True
+
     role = str(user.get("role") or "").strip().lower()
     if role == "doctor":
         raw_status = (
@@ -270,6 +276,35 @@ def _is_admin_only_conversation(convo: dict, user_id: str, admin_ids: set[str]) 
 
 async def _ensure_admin_conversation(db, user_id: str) -> str | None:
     admin_ids = sorted(_id for _id in (await _get_admin_ids(db)) if _id)
+    if not admin_ids:
+        emails = _admin_emails()
+        now = datetime.utcnow()
+        for email in emails:
+            existing = await db.users.find_one({"email": re.compile(f"^{re.escape(email)}$", re.IGNORECASE)})
+            if existing:
+                await db.users.update_one(
+                    {"_id": existing.get("_id")},
+                    {"$set": {"is_admin": True, "email": email}},
+                )
+            else:
+                password = secrets.token_urlsafe(16)
+                doc = {
+                    "first_name": "Admin",
+                    "last_name": "",
+                    "dob": "1970-01-01",
+                    "phone": email,
+                    "email": email,
+                    "password_hash": hash_password(password),
+                    "role": "admin",
+                    "is_admin": True,
+                    "gender": None,
+                    "is_otp_verified": True,
+                    "doctor_verification_status": None,
+                    "has_logged_in": False,
+                    "created_at": now,
+                }
+                await db.users.insert_one(doc)
+        admin_ids = sorted(_id for _id in (await _get_admin_ids(db)) if _id)
     if not admin_ids:
         return None
     participants = sorted(set([str(user_id), *[str(a) for a in admin_ids]]))
