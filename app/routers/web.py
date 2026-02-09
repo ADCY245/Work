@@ -1,5 +1,7 @@
 import base64
 import hashlib
+import logging
+import re
 import secrets
 from datetime import datetime
 from pathlib import Path
@@ -20,6 +22,8 @@ templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 router = APIRouter()
 settings = get_settings()
+
+logger = logging.getLogger(__name__)
 
 AVATAR_MAP = {
     "male": "/static/img/avatar-male.svg",
@@ -123,6 +127,8 @@ async def _compute_unread_count(db, conversation: dict, user_id: str) -> int:
 def _is_messaging_restricted(user: dict | None) -> bool:
     if not user:
         return True
+    if _is_admin_user(user):
+        return False
     if user.get("restricted"):
         return True
 
@@ -162,6 +168,7 @@ def _is_admin_user(user: dict | None) -> bool:
 
 async def _get_admin_users(db, ensure_mailboxes: bool = True) -> list[dict]:
     admin_emails = _admin_emails()
+    admin_email_regexes = [re.compile(f"^{re.escape(e)}$", re.IGNORECASE) for e in admin_emails]
     query = {
         "$or": [
             {"is_admin": True},
@@ -171,14 +178,19 @@ async def _get_admin_users(db, ensure_mailboxes: bool = True) -> list[dict]:
     }
     if admin_emails:
         query["$or"].append({"email": {"$in": admin_emails}})
+        query["$or"].append({"email": {"$in": admin_email_regexes}})
 
     users = await db.users.find(query).to_list(length=50)
 
     if ensure_mailboxes and admin_emails:
-        existing_emails = {str(u.get("email") or "").strip().lower() for u in users}
         now = datetime.utcnow()
         for email in admin_emails:
-            if email in existing_emails:
+            existing = await db.users.find_one({"email": re.compile(f"^{re.escape(email)}$", re.IGNORECASE)})
+            if existing:
+                await db.users.update_one(
+                    {"_id": existing.get("_id")},
+                    {"$set": {"is_admin": True, "email": email}},
+                )
                 continue
             password = secrets.token_urlsafe(16)
             doc = {
@@ -800,7 +812,23 @@ async def start_admin_message(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     db = get_database()
-    thread_id = await _ensure_admin_conversation(db, str(user.get("_id")))
+    user_id = str(user.get("_id"))
+    try:
+        admin_ids = await _get_admin_ids(db)
+        logger.info(
+            "start-admin: user_id=%s role=%s status=%s doctor_verification_status=%s restricted=%s admin_emails=%s admin_ids=%s",
+            user_id,
+            user.get("role"),
+            user.get("status"),
+            user.get("doctor_verification_status"),
+            user.get("restricted"),
+            _admin_emails(),
+            sorted(admin_ids),
+        )
+    except Exception:
+        logger.exception("start-admin: failed resolving admin ids")
+
+    thread_id = await _ensure_admin_conversation(db, user_id)
     if not thread_id:
         return RedirectResponse(url="/messages", status_code=303)
     return RedirectResponse(url=f"/messages/{thread_id}", status_code=303)
