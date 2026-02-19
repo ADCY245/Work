@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -104,7 +104,7 @@ async def _send_password_reset_otp_email(email: str, otp: str) -> str | None:
 
 
 def _set_session_cookie(response: RedirectResponse, session_token: str) -> None:
-    expires_at = datetime.utcnow() + timedelta(seconds=SESSION_MAX_AGE_SECONDS)
+    expires_at = datetime.now(timezone.utc) + timedelta(seconds=SESSION_MAX_AGE_SECONDS)
     response.set_cookie(
         settings.session_cookie_name,
         session_token,
