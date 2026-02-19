@@ -487,6 +487,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const messagesList = document.querySelector("[data-messages-list]");
     const activeThreadId = conversationPanel?.dataset.activeThreadId;
     const sendForm = document.querySelector("[data-send-form]");
+    let isSending = false;
 
     const setBadge = (count) => {
       if (!navBadge) return;
@@ -677,9 +678,18 @@ document.addEventListener("DOMContentLoaded", () => {
     if (sendForm && activeThreadId && messagesList) {
       sendForm.addEventListener("submit", async (event) => {
         event.preventDefault();
+        if (isSending) return;
         const input = sendForm.querySelector("input[name='text']");
+        const submitButton = sendForm.querySelector("button[type='submit']");
         const text = (input?.value || "").trim();
         if (!text) return;
+
+        isSending = true;
+        if (input) {
+          input.value = "";
+          input.disabled = true;
+        }
+        if (submitButton) submitButton.disabled = true;
 
         const payload = new FormData();
         payload.append("text", text);
@@ -692,17 +702,23 @@ document.addEventListener("DOMContentLoaded", () => {
           const data = await res.json().catch(() => ({}));
           if (!res.ok) {
             alert(data.error || "Could not send message");
+            if (input) input.value = text;
             return;
           }
           if (data.message) {
             appendMessages([data.message]);
           }
-          if (input) input.value = "";
           await markRead();
           refreshThreads();
           fetchUnread();
         } catch {
           alert("Could not send message");
+          if (input) input.value = text;
+        } finally {
+          isSending = false;
+          if (input) input.disabled = false;
+          if (submitButton) submitButton.disabled = false;
+          if (input) input.focus();
         }
       });
     }
