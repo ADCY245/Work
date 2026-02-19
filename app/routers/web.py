@@ -432,6 +432,13 @@ async def login(request: Request):
     return templates.TemplateResponse("auth/login.html", await build_context(request))
 
 
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password(request: Request):
+    return templates.TemplateResponse(
+        "auth/forgot_password.html", await build_context(request)
+    )
+
+
 @router.get("/signup", response_class=HTMLResponse)
 async def signup(request: Request):
     return templates.TemplateResponse("auth/signup.html", await build_context(request))

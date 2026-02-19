@@ -28,6 +28,8 @@ from app.services.emailer import send_email
 
 settings = get_settings()
 
+SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 3
+
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -89,6 +91,28 @@ async def _send_otp_email(email: str, otp: str) -> str | None:
         return None
     except Exception as exc:  # pragma: no cover - surface in UI
         return str(exc)
+
+
+async def _send_password_reset_otp_email(email: str, otp: str) -> str | None:
+    subject = "Your PhysiHome password reset code"
+    body = f"Your password reset OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
+    try:
+        await run_in_threadpool(send_email, subject, body, [email])
+        return None
+    except Exception as exc:  # pragma: no cover
+        return str(exc)
+
+
+def _set_session_cookie(response: RedirectResponse, session_token: str) -> None:
+    expires_at = datetime.utcnow() + timedelta(seconds=SESSION_MAX_AGE_SECONDS)
+    response.set_cookie(
+        settings.session_cookie_name,
+        session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=SESSION_MAX_AGE_SECONDS,
+        expires=expires_at,
+    )
 
 
 async def _send_doctor_documents_email(email: str, attachments: list[tuple[str, bytes, str]]) -> str | None:
@@ -588,13 +612,152 @@ async def verify_otp_handler(
         redirect_target = "/profile?pending_verification=1"
 
     response = RedirectResponse(url=redirect_target, status_code=303)
-    response.set_cookie(
-        settings.session_cookie_name,
-        session_token,
-        httponly=True,
-        samesite="lax",
-    )
+    _set_session_cookie(response, session_token)
     return response
+
+
+@router.post("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_handler(
+    request: Request,
+    email: str = Form(...),
+):
+    db = get_database()
+    normalized_email = _normalize_email(email)
+    user = await db.users.find_one({"email": normalized_email})
+
+    otp = generate_otp(settings.otp_length)
+    otp_hash = hash_otp(otp, settings.secret_key)
+    now = utcnow()
+    otp_expires_at = now + timedelta(minutes=settings.otp_expiry_minutes)
+
+    email_error = None
+    otp_debug = None
+    if user and user.get("is_otp_verified"):
+        await db.users.update_one(
+            {"_id": user["_id"]},
+            {
+                "$set": {
+                    "reset_password_otp_hash": otp_hash,
+                    "reset_password_otp_expires_at": otp_expires_at,
+                },
+                "$unset": {
+                    "reset_password_otp_verified_expires_at": "",
+                },
+            },
+        )
+        email_error = await _send_password_reset_otp_email(normalized_email, otp)
+        otp_debug = otp if email_error else None
+
+    return templates.TemplateResponse(
+        "auth/reset_password_otp.html",
+        base_context(
+            request,
+            email=normalized_email,
+            email_error=email_error,
+            otp_debug=otp_debug,
+            success_message="If this email exists, we sent a code. Please check your inbox.",
+        ),
+    )
+
+
+@router.post("/forgot-password/verify-otp", response_class=HTMLResponse)
+async def forgot_password_verify_otp_handler(
+    request: Request,
+    email: str = Form(...),
+    otp: str = Form(...),
+):
+    db = get_database()
+    normalized_email = _normalize_email(email)
+    user = await db.users.find_one({"email": normalized_email})
+    if not user:
+        return templates.TemplateResponse(
+            "auth/reset_password_otp.html",
+            base_context(request, email=normalized_email, error="Incorrect OTP. Try again."),
+            status_code=400,
+        )
+
+    otp_hash = user.get("reset_password_otp_hash")
+    otp_expires_at = user.get("reset_password_otp_expires_at")
+    if not otp_hash or not otp_expires_at:
+        return templates.TemplateResponse(
+            "auth/reset_password_otp.html",
+            base_context(request, email=normalized_email, error="OTP not found. Please request a new one."),
+            status_code=400,
+        )
+
+    if utcnow() > otp_expires_at:
+        return templates.TemplateResponse(
+            "auth/reset_password_otp.html",
+            base_context(request, email=normalized_email, error="OTP expired. Please request a new one."),
+            status_code=400,
+        )
+
+    if not verify_otp(otp.strip(), otp_hash, settings.secret_key):
+        return templates.TemplateResponse(
+            "auth/reset_password_otp.html",
+            base_context(request, email=normalized_email, error="Incorrect OTP. Try again."),
+            status_code=400,
+        )
+
+    verified_expires_at = utcnow() + timedelta(minutes=15)
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {"reset_password_otp_verified_expires_at": verified_expires_at},
+            "$unset": {"reset_password_otp_hash": "", "reset_password_otp_expires_at": ""},
+        },
+    )
+
+    return templates.TemplateResponse(
+        "auth/reset_password_new.html",
+        base_context(request, email=normalized_email),
+    )
+
+
+@router.post("/reset-password", response_class=HTMLResponse)
+async def reset_password_handler(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+):
+    db = get_database()
+    normalized_email = _normalize_email(email)
+    user = await db.users.find_one({"email": normalized_email})
+    if not user:
+        return templates.TemplateResponse(
+            "auth/forgot_password.html",
+            base_context(request, error="Could not reset password. Please start over."),
+            status_code=400,
+        )
+
+    verified_expires_at = user.get("reset_password_otp_verified_expires_at")
+    if not verified_expires_at or utcnow() > verified_expires_at:
+        return templates.TemplateResponse(
+            "auth/forgot_password.html",
+            base_context(request, error="Reset session expired. Please request a new code."),
+            status_code=400,
+        )
+
+    is_valid_password, password_error = validate_password_strength(password)
+    if not is_valid_password:
+        return templates.TemplateResponse(
+            "auth/reset_password_new.html",
+            base_context(request, email=normalized_email, error=password_error),
+            status_code=400,
+        )
+
+    await db.users.update_one(
+        {"_id": user["_id"]},
+        {
+            "$set": {"password_hash": hash_password(password)},
+            "$unset": {"reset_password_otp_verified_expires_at": ""},
+        },
+    )
+
+    return templates.TemplateResponse(
+        "auth/login.html",
+        base_context(request, success_message="Password updated. Please log in."),
+    )
 
 
 @router.post("/update-profile")
@@ -697,12 +860,7 @@ async def login_handler(
         redirect_target = "/profile?pending_verification=1"
 
     response = RedirectResponse(url=redirect_target, status_code=303)
-    response.set_cookie(
-        settings.session_cookie_name,
-        session_token,
-        httponly=True,
-        samesite="lax",
-    )
+    _set_session_cookie(response, session_token)
     return response
 
 
