@@ -486,6 +486,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const conversationPanel = document.querySelector("[data-conversation-panel]");
     const messagesList = document.querySelector("[data-messages-list]");
     const activeThreadId = conversationPanel?.dataset.activeThreadId;
+    const sendForm = document.querySelector("[data-send-form]");
 
     const setBadge = (count) => {
       if (!navBadge) return;
@@ -520,6 +521,11 @@ document.addEventListener("DOMContentLoaded", () => {
         a.href = `/messages/${t._id}`;
         a.style.padding = "0.75rem";
         a.style.textDecoration = "none";
+        a.dataset.threadLocked = t.locked ? "1" : "0";
+        if (t.locked) {
+          a.style.opacity = "0.6";
+          a.style.cursor = "not-allowed";
+        }
         if (t.unread_count > 0) {
           a.style.outline = "2px solid rgba(245, 158, 11, 0.35)";
         }
@@ -544,6 +550,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         threadsList.appendChild(a);
+      });
+
+      threadsList.querySelectorAll("[data-thread-locked='1'], [data-thread-locked='true'], [data-thread-locked='True']").forEach((link) => {
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          alert("Please wait for admin to verify your account.");
+        });
       });
     };
 
@@ -636,6 +649,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
     fetchUnread();
     if (threadsList) {
+      threadsList.querySelectorAll("[data-thread-locked='1']").forEach((link) => {
+        link.addEventListener("click", (event) => {
+          event.preventDefault();
+          alert("Please wait for admin to verify your account.");
+        });
+      });
+    }
+    if (threadsList) {
       refreshThreads();
       setInterval(refreshThreads, 2500);
     }
@@ -651,6 +672,39 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       markRead();
       setInterval(pollActiveConversation, 2000);
+    }
+
+    if (sendForm && activeThreadId && messagesList) {
+      sendForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const input = sendForm.querySelector("input[name='text']");
+        const text = (input?.value || "").trim();
+        if (!text) return;
+
+        const payload = new FormData();
+        payload.append("text", text);
+        try {
+          const res = await fetch(`/api/messages/${activeThreadId}/send`, {
+            method: "POST",
+            body: payload,
+            headers: { Accept: "application/json" },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            alert(data.error || "Could not send message");
+            return;
+          }
+          if (data.message) {
+            appendMessages([data.message]);
+          }
+          if (input) input.value = "";
+          await markRead();
+          refreshThreads();
+          fetchUnread();
+        } catch {
+          alert("Could not send message");
+        }
+      });
     }
   };
 

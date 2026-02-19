@@ -99,7 +99,7 @@ async def _send_doctor_documents_email(email: str, attachments: list[tuple[str, 
     )
     admin_emails = sorted(set(str(e).strip().lower() for e in (settings.admin_emails or []) if e))
     if not admin_emails:
-        admin_emails = ["info@physihome.com"]
+        return "Admin email not configured"
     try:
         await run_in_threadpool(send_email, subject, body, admin_emails, attachments)
         return None

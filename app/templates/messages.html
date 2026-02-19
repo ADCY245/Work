@@ -17,7 +17,7 @@
       {% if threads and threads|length %}
         <div class="threads" style="margin-top: 0.75rem; display:flex; flex-direction:column; gap:0.5rem;" data-threads-list>
           {% for thread in threads %}
-            <a class="card" style="padding:0.75rem; text-decoration:none;" href="/messages/{{ thread._id }}" data-thread-item data-thread-id="{{ thread._id }}" data-thread-unread="{{ 1 if thread.unread_count and thread.unread_count > 0 else 0 }}">
+            <a class="card" style="padding:0.75rem; text-decoration:none;" href="/messages/{{ thread._id }}" data-thread-item data-thread-id="{{ thread._id }}" data-thread-unread="{{ 1 if thread.unread_count and thread.unread_count > 0 else 0 }}" data-thread-locked="{{ 1 if thread.locked else 0 }}">
               <strong style="display:block; color: inherit;">{{ thread.title }}</strong>
               <span class="muted small">Open conversation</span>
               {% if thread.unread_count and thread.unread_count > 0 %}
@@ -27,7 +27,7 @@
           {% endfor %}
         </div>
       {% else %}
-        <p class="muted">No messages yet.</p>
+        <p class="muted">No messages yet.</p><br>
         <a class="btn primary" href="/messages/start-admin">Any issues? Contact admin</a>
       {% endif %}
     </div>

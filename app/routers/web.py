@@ -155,8 +155,6 @@ def _is_messaging_restricted(user: dict | None) -> bool:
 
 def _admin_emails() -> list[str]:
     emails = [e.strip().lower() for e in (settings.admin_emails or []) if e]
-    if not emails:
-        emails = ["info@physihome.com"]
     return sorted(set(emails))
 
 
@@ -517,10 +515,14 @@ async def messages(request: Request):
 
     restricted_mode = _is_messaging_restricted(user)
     admin_ids = await _get_admin_ids(db)
+    role = str(user.get("role") or "").strip().lower()
 
     cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
     async for convo in cursor:
-        if restricted_mode and not (await _restricted_can_access_conversation(db, user, convo)):
+        locked = False
+        if restricted_mode and role == "doctor":
+            locked = not (await _restricted_can_access_conversation(db, user, convo))
+        elif restricted_mode and not (await _restricted_can_access_conversation(db, user, convo)):
             continue
 
         admin_counterparty = _admin_broadcast_counterparty(convo, user_id, admin_ids)
@@ -554,6 +556,7 @@ async def messages(request: Request):
                 "title": other_name or "Conversation",
                 "updated_at": convo.get("updated_at"),
                 "unread_count": unread_count,
+                "locked": locked,
             }
         )
 
@@ -611,10 +614,14 @@ async def message_thread(request: Request, thread_id: str):
     threads = []
     restricted_mode = _is_messaging_restricted(user)
     admin_ids = await _get_admin_ids(db)
+    role = str(user.get("role") or "").strip().lower()
 
     cursor_threads = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
     async for t in cursor_threads:
-        if restricted_mode and not (await _restricted_can_access_conversation(db, user, t)):
+        locked = False
+        if restricted_mode and role == "doctor":
+            locked = not (await _restricted_can_access_conversation(db, user, t))
+        elif restricted_mode and not (await _restricted_can_access_conversation(db, user, t)):
             continue
 
         admin_counterparty = _admin_broadcast_counterparty(t, user_id, admin_ids)
@@ -647,6 +654,7 @@ async def message_thread(request: Request, thread_id: str):
                 "_id": str(t.get("_id")),
                 "title": other_name or "Conversation",
                 "unread_count": unread_count,
+                "locked": locked,
             }
         )
 
@@ -699,10 +707,14 @@ async def api_threads(request: Request):
     threads = []
     restricted_mode = _is_messaging_restricted(user)
     admin_ids = await _get_admin_ids(db)
+    role = str(user.get("role") or "").strip().lower()
 
     cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
     async for convo in cursor:
-        if restricted_mode and not (await _restricted_can_access_conversation(db, user, convo)):
+        locked = False
+        if restricted_mode and role == "doctor":
+            locked = not (await _restricted_can_access_conversation(db, user, convo))
+        elif restricted_mode and not (await _restricted_can_access_conversation(db, user, convo)):
             continue
 
         admin_counterparty = _admin_broadcast_counterparty(convo, user_id, admin_ids)
@@ -736,9 +748,59 @@ async def api_threads(request: Request):
                 "title": other_name or "Conversation",
                 "unread_count": unread_count,
                 "updated_at": _iso(convo.get("updated_at")),
+                "locked": locked,
             }
         )
     return JSONResponse({"threads": threads})
+
+
+@router.post("/api/messages/{thread_id}/send")
+async def api_send_message(request: Request, thread_id: str, text: str = Form("")):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    message = (text or "").strip()
+    if not message:
+        return JSONResponse({"error": "Empty message"}, status_code=400)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        convo_oid = ObjectId(thread_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid conversation"}, status_code=400)
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    if _is_messaging_restricted(user):
+        if not (await _restricted_can_access_conversation(db, user, convo)):
+            role = str(user.get("role") or "").strip().lower()
+            if role == "doctor":
+                return JSONResponse(_restricted_access_error(), status_code=403)
+            return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    now = datetime.utcnow()
+    await db.messages.insert_one(
+        {
+            "conversation_id": str(convo_oid),
+            "sender_id": user_id,
+            "ciphertext": _encrypt_text(message),
+            "created_at": now,
+        }
+    )
+    await db.conversations.update_one({"_id": convo_oid}, {"$set": {"updated_at": now}})
+    return JSONResponse(
+        {
+            "message": {
+                "sender_id": user_id,
+                "text": message,
+                "created_at": _iso(now),
+                "is_me": True,
+            }
+        }
+    )
 
 
 @router.get("/api/messages/{thread_id}/since")

@@ -41,18 +41,14 @@ class Settings(BaseSettings):
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
 
     admin_emails: list[str] = Field(
-        default_factory=lambda: [
-            "info@physihome.shop",
-            "info@physihome.com",
-            "athulnair3096@gmail.com",
-        ],
+        default_factory=list,
         alias="ADMIN_EMAILS",
     )
 
     @model_validator(mode="after")
     def _ensure_notification_email(self):
         if not self.notifications_from_email:
-            self.notifications_from_email = self.email_from_fallback or "info@physihome.shop"
+            self.notifications_from_email = self.email_from_fallback
         return self
 
     class Config:
