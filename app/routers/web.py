@@ -320,14 +320,22 @@ async def _ensure_admin_conversation(db, user_id: str) -> str | None:
     admin_ids = sorted(_id for _id in (await _get_admin_ids(db)) if _id)
     if not admin_ids:
         return None
-    participants = sorted(set([str(user_id), *[str(a) for a in admin_ids]]))
-    existing = await db.conversations.find_one({"participants": participants})
-    if not existing:
-        existing = await db.conversations.find_one(
-            {"participants": {"$all": participants}, "$expr": {"$eq": [{"$size": "$participants"}, len(participants)]}}
-        )
-    if existing:
-        return str(existing.get("_id"))
+
+    user_id_str = str(user_id)
+    admin_set = set(str(a) for a in admin_ids)
+
+    # Reuse any existing broadcast conversation between the user and admins.
+    # This avoids duplicating threads when the admin list changes (e.g., admins added/removed).
+    cursor = db.conversations.find({"participants": user_id_str}).sort("updated_at", -1)
+    async for convo in cursor:
+        participants = [str(pid) for pid in (convo.get("participants") or [])]
+        if user_id_str not in participants:
+            continue
+        other_ids = [pid for pid in participants if pid != user_id_str]
+        if other_ids and all(pid in admin_set for pid in other_ids):
+            return str(convo.get("_id"))
+
+    participants = sorted(set([user_id_str, *sorted(admin_set)]))
     now = datetime.utcnow()
     result = await db.conversations.insert_one(
         {"participants": participants, "created_at": now, "updated_at": now}

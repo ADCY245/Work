@@ -588,7 +588,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const appendMessages = (msgs) => {
       if (!messagesList) return;
       msgs.forEach((m) => {
-        const seenKey = m.created_at ? `${m.created_at}|${m.sender_id}|${m.text}` : null;
+        const seenKey = m.created_at || null;
         if (seenKey && seen.has(seenKey)) {
           return;
         }
