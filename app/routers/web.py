@@ -1078,3 +1078,67 @@ async def admin_dashboard(request: Request):
             pending=pending_verification,
         ),
     )
+
+
+@router.post("/api/admin/cleanup-admin-chats")
+async def api_cleanup_admin_chats(request: Request):
+    user = await get_user_from_request(request)
+    if not user or not _is_admin_user(user):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+
+    db = get_database()
+    admin_ids = await _get_admin_ids(db)
+    if not admin_ids:
+        return JSONResponse({"ok": True, "merged": 0, "deleted": 0})
+
+    convos = []
+    cursor = db.conversations.find({}).sort("updated_at", -1)
+    async for convo in cursor:
+        participants = [str(pid) for pid in (convo.get("participants") or [])]
+        if len(participants) < 2:
+            continue
+        non_admin = [pid for pid in participants if pid not in admin_ids]
+        if len(non_admin) != 1:
+            continue
+        if not all(pid in admin_ids for pid in participants if pid != non_admin[0]):
+            continue
+        convos.append((non_admin[0], convo))
+
+    groups: dict[str, list[dict]] = {}
+    for owner_id, convo in convos:
+        groups.setdefault(owner_id, []).append(convo)
+
+    merged = 0
+    deleted = 0
+    for owner_id, items in groups.items():
+        if len(items) <= 1:
+            continue
+
+        def _updated_at(c: dict):
+            return c.get("updated_at") or c.get("created_at")
+
+        items_sorted = sorted(items, key=_updated_at, reverse=True)
+        keep = items_sorted[0]
+        keep_id = str(keep.get("_id"))
+        if not keep_id:
+            continue
+
+        for dupe in items_sorted[1:]:
+            dupe_id = str(dupe.get("_id"))
+            if not dupe_id or dupe_id == keep_id:
+                continue
+
+            await db.messages.update_many(
+                {"conversation_id": dupe_id},
+                {"$set": {"conversation_id": keep_id}},
+            )
+            await db.conversations.delete_one({"_id": dupe.get("_id")})
+            deleted += 1
+            merged += 1
+
+        await db.conversations.update_one(
+            {"_id": keep.get("_id")},
+            {"$set": {"updated_at": datetime.utcnow()}},
+        )
+
+    return JSONResponse({"ok": True, "merged": merged, "deleted": deleted})
