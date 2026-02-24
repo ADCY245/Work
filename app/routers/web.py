@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import asyncio
 import logging
 import re
 import secrets
@@ -16,6 +17,7 @@ from starlette.responses import JSONResponse
 from app.core.config import get_settings
 from app.db import get_database
 from app.services.auth_utils import get_user_from_request, hash_password
+from app.services.twilio_messaging import send_whatsapp
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
@@ -806,6 +808,32 @@ async def api_send_message(request: Request, thread_id: str, text: str = Form(""
         }
     )
     await db.conversations.update_one({"_id": convo_oid}, {"$set": {"updated_at": now}})
+
+    try:
+        participants = [str(pid) for pid in (convo.get("participants") or [])]
+        recipient_ids = [pid for pid in participants if pid and pid != user_id]
+        if recipient_ids:
+            sender_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or "Someone"
+            if str(user.get("role") or "").strip().lower() == "doctor":
+                sender_name = f"Dr. {sender_name}".strip()
+            notify_body = f"{sender_name} has messaged you on PhysiHome."
+
+            async def _notify_one(uid: str) -> None:
+                try:
+                    other = await db.users.find_one({"_id": ObjectId(uid)})
+                except Exception:
+                    other = None
+                phone = other.get("phone") if other else None
+                try:
+                    await send_whatsapp(phone, notify_body)
+                except Exception:
+                    pass
+
+            for rid in recipient_ids:
+                asyncio.create_task(_notify_one(rid))
+    except Exception:
+        pass
+
     return JSONResponse(
         {
             "message": {

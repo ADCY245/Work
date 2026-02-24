@@ -25,6 +25,7 @@ from app.services.auth_utils import (
     verify_password,
 )
 from app.services.emailer import send_email
+from app.services.twilio_messaging import send_sms, send_whatsapp
 
 settings = get_settings()
 
@@ -91,6 +92,18 @@ async def _send_otp_email(email: str, otp: str) -> str | None:
         return None
     except Exception as exc:  # pragma: no cover - surface in UI
         return str(exc)
+
+
+async def _send_otp_twilio(phone: str | None, otp: str, purpose: str) -> None:
+    message = f"Your PhysiHome {purpose} OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
+    try:
+        await send_sms(phone, message)
+    except Exception:
+        pass
+    try:
+        await send_whatsapp(phone, message)
+    except Exception:
+        pass
 
 
 async def _send_password_reset_otp_email(email: str, otp: str) -> str | None:
@@ -233,6 +246,7 @@ async def signup(
     else:
         await db.users.insert_one(user_doc)
     email_error = await _send_otp_email(normalized_email, otp)
+    await _send_otp_twilio(phone_clean, otp, "verification")
     otp_debug = otp if email_error else None
 
     return templates.TemplateResponse(
@@ -364,6 +378,7 @@ async def doctor_signup(
         await db.pending_users.insert_one(pending_user_doc)
 
     email_error = await _send_otp_email(normalized_email, otp)
+    await _send_otp_twilio(phone_clean, otp, "verification")
     otp_debug = otp if email_error else None
 
     attachments = [
@@ -468,6 +483,7 @@ async def resend_otp(
         )
 
     email_error = await _send_otp_email(normalized_email, otp)
+    await _send_otp_twilio(target_user.get("phone"), otp, "verification")
     otp_debug = otp if email_error else None
 
     return templates.TemplateResponse(
@@ -646,6 +662,7 @@ async def forgot_password_handler(
             },
         )
         email_error = await _send_password_reset_otp_email(normalized_email, otp)
+        await _send_otp_twilio(user.get("phone"), otp, "password reset")
         otp_debug = otp if email_error else None
 
     return templates.TemplateResponse(
@@ -807,6 +824,7 @@ async def update_profile(
 
         await db.users.update_one({"_id": user["_id"]}, {"$set": updates})
         email_error = await _send_otp_email(normalized_email, otp)
+        await _send_otp_twilio(updates.get("phone"), otp, "verification")
         otp_debug = otp if email_error else None
         return templates.TemplateResponse(
             "auth/verify_otp.html",
