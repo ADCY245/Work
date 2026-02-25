@@ -26,7 +26,7 @@ from app.services.auth_utils import (
     verify_password,
 )
 from app.services.emailer import send_email
-from app.services.twilio_messaging import send_sms, send_whatsapp
+from app.services.meta_whatsapp import send_whatsapp
 
 settings = get_settings()
 
@@ -97,25 +97,16 @@ async def _send_otp_email(email: str, otp: str) -> str | None:
         return str(exc)
 
 
-async def _send_otp_twilio(phone: str | None, otp: str, purpose: str) -> None:
+async def _send_otp_whatsapp(phone: str | None, otp: str, purpose: str) -> None:
     message = f"Your PhysiHome {purpose} OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
-    try:
-        sms_error = await send_sms(phone, message)
-        if sms_error:
-            logger.info("Twilio SMS OTP not sent (purpose=%s, phone=%s): %s", purpose, phone, sms_error)
-        else:
-            logger.info("Twilio SMS OTP sent (purpose=%s, phone=%s)", purpose, phone)
-    except Exception as exc:
-        logger.info("Twilio SMS OTP exception (purpose=%s, phone=%s): %s", purpose, phone, str(exc))
-
     try:
         wa_error = await send_whatsapp(phone, message)
         if wa_error:
-            logger.info("Twilio WhatsApp OTP not sent (purpose=%s, phone=%s): %s", purpose, phone, wa_error)
+            logger.info("Meta WhatsApp OTP not sent (purpose=%s, phone=%s): %s", purpose, phone, wa_error)
         else:
-            logger.info("Twilio WhatsApp OTP sent (purpose=%s, phone=%s)", purpose, phone)
+            logger.info("Meta WhatsApp OTP sent (purpose=%s, phone=%s)", purpose, phone)
     except Exception as exc:
-        logger.info("Twilio WhatsApp OTP exception (purpose=%s, phone=%s): %s", purpose, phone, str(exc))
+        logger.info("Meta WhatsApp OTP exception (purpose=%s, phone=%s): %s", purpose, phone, str(exc))
 
 
 async def _send_password_reset_otp_email(email: str, otp: str) -> str | None:
@@ -258,7 +249,7 @@ async def signup(
     else:
         await db.users.insert_one(user_doc)
     email_error = await _send_otp_email(normalized_email, otp)
-    await _send_otp_twilio(phone_clean, otp, "verification")
+    await _send_otp_whatsapp(phone_clean, otp, "verification")
     otp_debug = otp if email_error else None
 
     return templates.TemplateResponse(
@@ -390,7 +381,7 @@ async def doctor_signup(
         await db.pending_users.insert_one(pending_user_doc)
 
     email_error = await _send_otp_email(normalized_email, otp)
-    await _send_otp_twilio(phone_clean, otp, "verification")
+    await _send_otp_whatsapp(phone_clean, otp, "verification")
     otp_debug = otp if email_error else None
 
     attachments = [
@@ -495,7 +486,7 @@ async def resend_otp(
         )
 
     email_error = await _send_otp_email(normalized_email, otp)
-    await _send_otp_twilio(target_user.get("phone"), otp, "verification")
+    await _send_otp_whatsapp(target_user.get("phone"), otp, "verification")
     otp_debug = otp if email_error else None
 
     return templates.TemplateResponse(
@@ -674,7 +665,7 @@ async def forgot_password_handler(
             },
         )
         email_error = await _send_password_reset_otp_email(normalized_email, otp)
-        await _send_otp_twilio(user.get("phone"), otp, "password reset")
+        await _send_otp_whatsapp(user.get("phone"), otp, "password reset")
         otp_debug = otp if email_error else None
 
     return templates.TemplateResponse(
@@ -836,7 +827,7 @@ async def update_profile(
 
         await db.users.update_one({"_id": user["_id"]}, {"$set": updates})
         email_error = await _send_otp_email(normalized_email, otp)
-        await _send_otp_twilio(updates.get("phone"), otp, "verification")
+        await _send_otp_whatsapp(updates.get("phone"), otp, "verification")
         otp_debug = otp if email_error else None
         return templates.TemplateResponse(
             "auth/verify_otp.html",

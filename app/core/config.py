@@ -40,10 +40,9 @@ class Settings(BaseSettings):
     email_from_fallback: str | None = Field(default=None, alias="EMAIL_FROM")
     resend_api_key: str | None = Field(default=None, alias="RESEND_API_KEY")
 
-    twilio_account_sid: str | None = Field(default=None, alias="TWILIO_ACCOUNT_SID")
-    twilio_auth_token: str | None = Field(default=None, alias="TWILIO_AUTH_TOKEN")
-    twilio_sms_from: str | None = Field(default=None, alias="TWILIO_SMS_FROM")
-    twilio_whatsapp_from: str | None = Field(default=None, alias="TWILIO_WHATSAPP_FROM")
+    meta_whatsapp_token: str | None = Field(default=None, alias="META_WHATSAPP_TOKEN")
+    meta_whatsapp_phone_number_id: str | None = Field(default=None, alias="META_WHATSAPP_PHONE_NUMBER_ID")
+    meta_whatsapp_api_version: str | None = Field(default="v19.0", alias="META_WHATSAPP_API_VERSION")
 
     admin_emails: list[str] = Field(
         default_factory=list,

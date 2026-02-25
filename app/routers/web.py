@@ -17,7 +17,7 @@ from starlette.responses import JSONResponse
 from app.core.config import get_settings
 from app.db import get_database
 from app.services.auth_utils import get_user_from_request, hash_password
-from app.services.twilio_messaging import send_whatsapp
+from app.services.meta_whatsapp import send_whatsapp
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
