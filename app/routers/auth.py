@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,8 @@ from app.services.emailer import send_email
 from app.services.twilio_messaging import send_sms, send_whatsapp
 
 settings = get_settings()
+
+logger = logging.getLogger(__name__)
 
 SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 3
 
@@ -97,13 +100,22 @@ async def _send_otp_email(email: str, otp: str) -> str | None:
 async def _send_otp_twilio(phone: str | None, otp: str, purpose: str) -> None:
     message = f"Your PhysiHome {purpose} OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
     try:
-        await send_sms(phone, message)
-    except Exception:
-        pass
+        sms_error = await send_sms(phone, message)
+        if sms_error:
+            logger.info("Twilio SMS OTP not sent (purpose=%s, phone=%s): %s", purpose, phone, sms_error)
+        else:
+            logger.info("Twilio SMS OTP sent (purpose=%s, phone=%s)", purpose, phone)
+    except Exception as exc:
+        logger.info("Twilio SMS OTP exception (purpose=%s, phone=%s): %s", purpose, phone, str(exc))
+
     try:
-        await send_whatsapp(phone, message)
-    except Exception:
-        pass
+        wa_error = await send_whatsapp(phone, message)
+        if wa_error:
+            logger.info("Twilio WhatsApp OTP not sent (purpose=%s, phone=%s): %s", purpose, phone, wa_error)
+        else:
+            logger.info("Twilio WhatsApp OTP sent (purpose=%s, phone=%s)", purpose, phone)
+    except Exception as exc:
+        logger.info("Twilio WhatsApp OTP exception (purpose=%s, phone=%s): %s", purpose, phone, str(exc))
 
 
 async def _send_password_reset_otp_email(email: str, otp: str) -> str | None:
