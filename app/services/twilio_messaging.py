@@ -13,9 +13,11 @@ def _normalize_to_e164(phone: str | None) -> str | None:
     raw = str(phone or "").strip()
     if not raw:
         return None
-    if raw.startswith("+"):
-        return raw
     digits = "".join(ch for ch in raw if ch.isdigit())
+    if raw.startswith("+"):
+        if not digits:
+            return None
+        return "+" + digits
     if len(digits) == 10:
         return "+91" + digits
     if len(digits) >= 11 and digits.startswith("91"):
