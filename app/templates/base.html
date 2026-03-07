@@ -14,7 +14,14 @@
         <ul class="nav-links">
           <li><a href="/">Home</a></li>
           <li><a href="/about">About Us</a></li>
-          <li><a href="/services">Services</a></li>
+          <li class="nav-dropdown">
+            <button class="nav-link" type="button">Services</button>
+            <div class="dropdown-menu">
+              <a href="/mobile-physiotherapy">Mobile Physiotherapy</a>
+              <a href="/what-we-treat">What We Treat</a>
+              <a href="/areas-we-cover">Areas We Cover</a>
+            </div>
+          </li>
           <li><a href="/faq">FAQ</a></li>
           <li><a href="/contact">Contact Us</a></li>
           {% if show_messages %}
