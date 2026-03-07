@@ -1,0 +1,6 @@
+name = "physihome-proxy-worker"
+main = "src/index.ts"
+compatibility_date = "2026-03-07"
+
+[vars]
+RENDER_ORIGIN = "https://work-3sgq.onrender.com"
