@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Messages</title>
+  </head>
+  <body>
+    <h1>Messages</h1>
+
+    <button id="loadThreads">Load threads</button>
+    <pre id="threads"></pre>
+
+    <h2>Open conversation</h2>
+    <input id="convoId" placeholder="conversation_id" />
+    <button id="loadConvo">Load messages</button>
+    <pre id="messages"></pre>
+
+    <h2>Send</h2>
+    <input id="msgText" placeholder="message" />
+    <button id="send">Send</button>
+
+    <pre id="out"></pre>
+
+    <script>
+      const threadsEl = document.getElementById('threads');
+      const messagesEl = document.getElementById('messages');
+      const out = document.getElementById('out');
+
+      document.getElementById('loadThreads').addEventListener('click', async () => {
+        const res = await fetch('/api/messages/threads', { credentials: 'include' });
+        threadsEl.textContent = await res.text();
+      });
+
+      document.getElementById('loadConvo').addEventListener('click', async () => {
+        const id = document.getElementById('convoId').value.trim();
+        const res = await fetch(`/api/messages/${id}`, { credentials: 'include' });
+        messagesEl.textContent = await res.text();
+      });
+
+      document.getElementById('send').addEventListener('click', async () => {
+        const id = document.getElementById('convoId').value.trim();
+        const text = document.getElementById('msgText').value;
+        const res = await fetch(`/api/messages/${id}/send`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text }),
+          credentials: 'include'
+        });
+        out.textContent = await res.text();
+      });
+    </script>
+  </body>
+</html>

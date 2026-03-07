@@ -1,0 +1,20 @@
+name = "physihome-api"
+main = "src/index.ts"
+compatibility_date = "2026-03-07"
+
+[vars]
+ENVIRONMENT = "prod"
+META_WHATSAPP_API_VERSION = "v19.0"
+
+[[kv_namespaces]]
+binding = "OTP_KV"
+id = "REPLACE_ME"
+
+[[kv_namespaces]]
+binding = "SESSION_KV"
+id = "REPLACE_ME"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "physihome"
+database_id = "REPLACE_ME"
