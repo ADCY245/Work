@@ -2,48 +2,89 @@
 {% block title %}PhysiHome | Home Visit Doctors{% endblock %}
 {% block content %}
 {% if is_authenticated %}
-<section class="logged-in-hero">
-  <div class="hero-images">
-    <div class="hero-tile large" style="background-image: url('/static/img/hero-1.jpg')"></div>
-    <div class="hero-tile" style="background-image: url('/static/img/hero-2.jpg')"></div>
-    <div class="hero-tile" style="background-image: url('/static/img/hero-3.jpg')"></div>
+<section class="home-hero">
+  <div class="home-hero-media" aria-hidden="true">
+    <div class="home-hero-image" style="background-image: url('/static/img/hero-1.jpg')"></div>
   </div>
-  <div class="hero-copy">
+  <div class="home-hero-copy">
     {% if current_user %}
     <p class="eyebrow">Welcome back, {{ current_user.first_name }}</p>
     {% endif %}
-    <h1>Rejuvenate your health</h1>
-    <p class="tagline">Find physiotherapists for home visits or online practice.</p>
-    <div class="logged-in-search">
-      <button class="btn primary" type="button" data-search-toggle>Search for doctors</button>
-      <form class="search-fields" action="/doctors" method="get" data-search-panel hidden>
-        <label>
-          City
-          <input
-            type="text"
-            name="city"
-            placeholder="e.g. Mumbai"
-            autocomplete="address-level2"
-          />
-        </label>
-        <label>
-          PIN code
-          <input
-            type="text"
-            name="pin_code"
-            placeholder="Enter your PIN code"
-            inputmode="numeric"
-            pattern="\d{3,6}"
-          />
-        </label>
-        <button class="btn secondary" type="submit">Show doctors</button>
-      </form>
+    <h1>Sydney Mobile Physiotherapy Service.</h1>
+    <p class="tagline">Start your path to better movement and independence today.</p>
+    <div class="hero-cta">
+      <a class="btn primary" href="/services">Explore our services</a>
+      <a class="btn secondary" href="/messages/start-admin">Message our team</a>
     </div>
-    {% if current_user and current_user.role == 'doctor' %}
-    <p class="doctor-note">Interact with your patients, share exercise plans, and keep every follow-up in one place.</p>
-    {% else %}
-    <p class="doctor-note">Stay consistent with guided programs crafted just for you.</p>
-    {% endif %}
+  </div>
+</section>
+
+<section class="split-section">
+  <header class="section-heading">
+    <h2>Our Mission</h2>
+    <div class="section-rule" aria-hidden="true"></div>
+  </header>
+  <div class="split-grid">
+    <div class="split-media" aria-hidden="true">
+      <div class="split-image" style="background-image: url('/static/img/hero-2.jpg')"></div>
+    </div>
+    <div class="split-copy">
+      <p>
+        Our mission is to help people stay active, safe, and confident in the place they feel most comfortable—at home.
+        We combine evidence-based physiotherapy with compassionate coaching so every visit feels practical, calm, and personal.
+      </p>
+      <p>
+        Whether you're recovering from surgery, managing pain, or rebuilding strength after a setback, we focus on progress you can feel.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="services-section">
+  <header class="section-heading">
+    <h2>Our Services</h2>
+    <div class="section-rule" aria-hidden="true"></div>
+  </header>
+  <div class="service-card-grid">
+    <article class="service-card">
+      <div class="service-card-media" style="background-image: url('/static/img/hero-3.jpg')" aria-hidden="true"></div>
+      <h3>Mobile Physiotherapy</h3>
+      <p>One-to-one physiotherapy sessions in the comfort of your home, tailored to your goals.</p>
+      <a class="service-link" href="/mobile-physiotherapy">Learn more</a>
+    </article>
+    <article class="service-card">
+      <div class="service-card-media" style="background-image: url('/static/img/hero-2.jpg')" aria-hidden="true"></div>
+      <h3>What We Treat</h3>
+      <p>Support for mobility, balance, strength, pain, and post-surgery recovery—across all ages.</p>
+      <a class="service-link" href="/what-we-treat">Learn more</a>
+    </article>
+    <article class="service-card">
+      <div class="service-card-media" style="background-image: url('/static/img/hero-1.jpg')" aria-hidden="true"></div>
+      <h3>Areas We Cover</h3>
+      <p>We provide home visit physiotherapy across key suburbs and surrounding areas.</p>
+      <a class="service-link" href="/areas-we-cover">Learn more</a>
+    </article>
+  </div>
+</section>
+
+<section class="why-section">
+  <header class="section-heading">
+    <h2>Why Choose PhysiHome?</h2>
+    <div class="section-rule" aria-hidden="true"></div>
+  </header>
+  <div class="why-grid">
+    <article class="why-item">
+      <h3>Experienced clinicians with practical care plans</h3>
+      <p>Our approach blends hands-on treatment with simple exercises you can do safely between visits.</p>
+    </article>
+    <article class="why-item">
+      <h3>Personal programs tailored to your needs</h3>
+      <p>Every plan is adjusted to your pain level, mobility, equipment at home, and lifestyle.</p>
+    </article>
+    <article class="why-item">
+      <h3>Convenient scheduling and consistent follow-up</h3>
+      <p>Use Messages to stay connected with our team and keep your progress on track.</p>
+    </article>
   </div>
 </section>
 {% else %}

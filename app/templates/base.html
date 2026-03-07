@@ -22,16 +22,19 @@
               <a href="/areas-we-cover">Areas We Cover</a>
             </div>
           </li>
-          <li><a href="/faq">FAQ</a></li>
-          <li><a href="/contact">Contact Us</a></li>
-          {% if show_messages %}
-          <li>
-            <a href="/messages" data-nav-messages>
-              Messages
-              <span class="badge" data-messages-unread hidden>0</span>
-            </a>
+          <li class="nav-dropdown">
+            <button class="nav-link" type="button">Contact</button>
+            <div class="dropdown-menu dropdown-menu-right">
+              <a href="/contact">Contact Us</a>
+              <a href="/faq">FAQ</a>
+              {% if show_messages %}
+              <a href="/messages" data-nav-messages>
+                Messages
+                <span class="badge" data-messages-unread hidden>0</span>
+              </a>
+              {% endif %}
+            </div>
           </li>
-          {% endif %}
         </ul>
         <div class="profile-menu" data-auth="{{ 'true' if is_authenticated else 'false' }}">
           <button class="profile-icon" type="button" tabindex="0">
@@ -55,8 +58,36 @@
 
     <main>{% block content %}{% endblock %}</main>
 
-    <footer class="site-footer">
-      <p>&copy; {{ current_year }} PhysiHome. Home healthcare, simplified.</p>
+    <footer class="site-footer site-footer-dark">
+      <div class="footer-inner">
+        <div class="footer-col">
+          <h4>Quick Links</h4>
+          <a href="/">Home</a>
+          <a href="/about">About Us</a>
+          <a href="/services">Services</a>
+          <a href="/contact">Contact</a>
+          <a href="/faq">FAQ</a>
+        </div>
+        <div class="footer-col">
+          <h4>Make A Booking</h4>
+          <a href="/services">Explore Services</a>
+          {% if show_messages %}
+          <a href="/messages/start-admin">Message Our Team</a>
+          {% else %}
+          <a href="/signup">Create an Account</a>
+          {% endif %}
+        </div>
+        <div class="footer-col">
+          <h4>Contact Us</h4>
+          <a href="/contact">Contact Form</a>
+          {% if show_messages %}
+          <a href="/messages">Messages</a>
+          {% endif %}
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; {{ current_year }} PhysiHome. All rights reserved.</p>
+      </div>
     </footer>
 
     <div class="image-lightbox" data-image-lightbox hidden>
