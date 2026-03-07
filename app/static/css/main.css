@@ -415,6 +415,102 @@ a.btn {
   color: var(--muted);
 }
 
+.eyebrow {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  font-size: 0.8rem;
+  color: rgba(28, 124, 84, 0.75);
+  margin-bottom: 0.75rem;
+}
+
+.page-hero {
+  padding: 2.5rem 0 1.5rem;
+  max-width: 820px;
+}
+
+.page-hero h1 {
+  font-size: clamp(2.25rem, 3.5vw, 3rem);
+  line-height: 1.15;
+  margin-bottom: 0.75rem;
+}
+
+.page-hero p {
+  color: var(--muted);
+  font-size: 1.05rem;
+}
+
+.service-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.service-card {
+  display: grid;
+  gap: 0.5rem;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.service-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(28, 124, 84, 0.25);
+}
+
+.service-link {
+  color: var(--brand);
+  font-weight: 700;
+  margin-top: 0.25rem;
+}
+
+.info-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.bullet-list {
+  list-style: disc;
+  margin-left: 1.25rem;
+  color: var(--muted);
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.faq {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.faq details {
+  border-top: 1px solid rgba(27, 36, 64, 0.1);
+  padding-top: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.faq details:first-of-type {
+  border-top: none;
+  padding-top: 0;
+  margin-top: 0.5rem;
+}
+
+.faq summary {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.faq details p {
+  margin-top: 0.5rem;
+  color: var(--muted);
+}
+
 .section-title {
   margin-bottom: 1rem;
   font-size: 2rem;

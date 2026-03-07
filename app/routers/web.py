@@ -360,6 +360,33 @@ async def contact(request: Request):
     return templates.TemplateResponse("contact.html", await build_context(request))
 
 
+@router.get("/services", response_class=HTMLResponse)
+async def services(request: Request):
+    return templates.TemplateResponse("services.html", await build_context(request))
+
+
+@router.get("/mobile-physiotherapy", response_class=HTMLResponse)
+async def mobile_physiotherapy(request: Request):
+    return templates.TemplateResponse(
+        "mobile_physiotherapy.html", await build_context(request)
+    )
+
+
+@router.get("/what-we-treat", response_class=HTMLResponse)
+async def what_we_treat(request: Request):
+    return templates.TemplateResponse("what_we_treat.html", await build_context(request))
+
+
+@router.get("/areas-we-cover", response_class=HTMLResponse)
+async def areas_we_cover(request: Request):
+    return templates.TemplateResponse("areas_we_cover.html", await build_context(request))
+
+
+@router.get("/faq", response_class=HTMLResponse)
+async def faq(request: Request):
+    return templates.TemplateResponse("faq.html", await build_context(request))
+
+
 @router.get("/doctors", response_class=HTMLResponse)
 async def doctors(
     request: Request,
