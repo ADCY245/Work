@@ -59,7 +59,7 @@
         e.preventDefault();
         const fd = new FormData(e.target);
         const body = Object.fromEntries(fd.entries());
-        const res = await fetch(apiBase + '/api/auth/verify-otp', {
+        const res = await fetch('/api/auth/verify-otp', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
