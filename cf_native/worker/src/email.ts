@@ -20,7 +20,7 @@ export async function send_email(env: Env, to: string, subject: string, body: st
 
   if (res.status >= 400) {
     try {
-      const data = await res.json();
+      const data = await res.json() as { message?: string };
       return data?.message || `Email error (${res.status})`;
     } catch {
       return `Email error (${res.status})`;
