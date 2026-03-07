@@ -4,17 +4,16 @@ compatibility_date = "2026-03-07"
 
 [vars]
 ENVIRONMENT = "prod"
-META_WHATSAPP_API_VERSION = "v19.0"
 
 [[kv_namespaces]]
 binding = "OTP_KV"
-id = "REPLACE_ME"
+id = "d759d1e1cbd64e49a9b76d0e75ce6e51"
 
 [[kv_namespaces]]
 binding = "SESSION_KV"
-id = "REPLACE_ME"
+id = "ba174a69c81a4c98a87378b48bfd20cf"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "physihome"
-database_id = "REPLACE_ME"
+database_id = "79c8842c-a3e1-43a8-9b3b-f1f4771e82c8"

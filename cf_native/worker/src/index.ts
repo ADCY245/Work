@@ -1,7 +1,7 @@
 import type { Env } from "./types";
-import { badRequest, json, notFound, nowMs, parseCookies, randomId, setCookie, unauthorized, generateOtp } from "./utils";
+import { badRequest, json, nowMs, randomId, setCookie, generateOtp } from "./utils";
 import { hashPassword, verifyPassword } from "./crypto";
-import { sendWhatsApp } from "./whatsapp";
+import { send_email } from "./email";
 
 const OTP_TTL_SECONDS = 60 * 10;
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 3;
@@ -87,11 +87,10 @@ export default {
 
       // Send OTP
       const otp = generateOtp(6);
-      await env.OTP_KV.put(`otp:${phone}`, JSON.stringify({ otp, user_id: id, created_at: ts }), { expirationTtl: OTP_TTL_SECONDS });
-      const msg = `Your PhysiHome verification OTP is ${otp}. It expires in 10 minutes.`;
-      const err = await sendWhatsApp(env, phone, msg);
+      await env.OTP_KV.put(`otp:${email}`, JSON.stringify({ otp, user_id: id, created_at: ts }), { expirationTtl: OTP_TTL_SECONDS });
+      await _send_otp_email(env, email, otp);
 
-      return withCors(req, json({ ok: true, whatsapp_error: err || null }));
+      return withCors(req, json({ ok: true }));
     }
 
     if (url.pathname === "/api/auth/resend-otp" && req.method === "POST") {
@@ -100,27 +99,26 @@ export default {
       const phone = String(body.phone || "").trim();
       if (!phone) return withCors(req, badRequest("Missing phone"));
 
-      const user = await env.DB.prepare("SELECT id, is_otp_verified FROM users WHERE phone = ?").bind(phone).first<{ id: string; is_otp_verified: number }>();
+      const user = await env.DB.prepare("SELECT id, email, is_otp_verified FROM users WHERE phone = ?").bind(phone).first<{ id: string; email: string; is_otp_verified: number }>();
       if (!user) return withCors(req, badRequest("Account not found"));
       if (user.is_otp_verified) return withCors(req, badRequest("Already verified"));
 
       const otp = generateOtp(6);
       const ts = nowMs();
-      await env.OTP_KV.put(`otp:${phone}`, JSON.stringify({ otp, user_id: user.id, created_at: ts }), { expirationTtl: OTP_TTL_SECONDS });
-      const msg = `Your PhysiHome verification OTP is ${otp}. It expires in 10 minutes.`;
-      const err = await sendWhatsApp(env, phone, msg);
-      return withCors(req, json({ ok: true, whatsapp_error: err || null }));
+      await env.OTP_KV.put(`otp:${user.email}`, JSON.stringify({ otp, user_id: user.id, created_at: ts }), { expirationTtl: OTP_TTL_SECONDS });
+      await _send_otp_email(env, user.email, otp);
+      return withCors(req, json({ ok: true }));
     }
 
     if (url.pathname === "/api/auth/verify-otp" && req.method === "POST") {
-      const body = await readJson<{ phone: string; otp: string }>(req);
+      const body = await readJson<{ email: string; otp: string }>(req);
       if (!body) return withCors(req, badRequest("Invalid JSON"));
 
-      const phone = String(body.phone || "").trim();
+      const email = String(body.email || "").trim().toLowerCase();
       const otp = String(body.otp || "").trim();
-      if (!phone || !otp) return withCors(req, badRequest("Missing fields"));
+      if (!email || !otp) return withCors(req, badRequest("Missing fields"));
 
-      const stored = await env.OTP_KV.get(`otp:${phone}`);
+      const stored = await env.OTP_KV.get(`otp:${email}`);
       if (!stored) return withCors(req, badRequest("OTP expired"));
 
       let parsed: any;
@@ -267,21 +265,7 @@ export default {
 
       await env.DB.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").bind(ts, convoId).run();
 
-      // Notify other participants via WhatsApp (best-effort)
-      const others = await env.DB.prepare(
-        "SELECT u.phone as phone FROM users u JOIN conversation_participants p ON p.user_id = u.id WHERE p.conversation_id = ? AND u.id != ?",
-      )
-        .bind(convoId, user.id)
-        .all<{ phone: string }>();
-
-      const notify = `You have a new message on PhysiHome.`;
-      for (const r of others.results) {
-        try {
-          await sendWhatsApp(env, r.phone, notify);
-        } catch {
-          // ignore
-        }
-      }
+      // TODO: Add email notifications if needed
 
       return withCors(req, json({ ok: true, message: { id: msgId, sender_id: user.id, text, created_at: ts } }));
     }

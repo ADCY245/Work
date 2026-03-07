@@ -5,9 +5,7 @@ export interface Env {
   OTP_KV: KVNamespace;
   SESSION_KV: KVNamespace;
 
-  META_WHATSAPP_TOKEN?: string;
-  META_WHATSAPP_PHONE_NUMBER_ID?: string;
-  META_WHATSAPP_API_VERSION?: string;
+  RESEND_API_KEY?: string;
 
   SESSION_COOKIE_NAME?: string;
   SECRET_KEY?: string;
