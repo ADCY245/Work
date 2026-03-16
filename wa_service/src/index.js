@@ -36,19 +36,31 @@ await mongo.connect();
 const sessionCollection = mongo.db(SESSION_DB_NAME).collection(SESSION_COLLECTION);
 
 const store = {
-  async save({ session, clientId }) {
+  async sessionExists({ session }) {
+    const name = String(session || "").trim();
+    if (!name) return false;
+    const doc = await sessionCollection.findOne({ sessionName: name }, { projection: { _id: 1 } });
+    return Boolean(doc);
+  },
+  async save({ session, data }) {
+    const name = String(session || "").trim();
+    if (!name) return;
     await sessionCollection.updateOne(
-      { clientId },
-      { $set: { clientId, session, updatedAt: new Date() } },
+      { sessionName: name },
+      { $set: { sessionName: name, data, updatedAt: new Date() } },
       { upsert: true }
     );
   },
-  async extract({ clientId }) {
-    const doc = await sessionCollection.findOne({ clientId });
-    return doc?.session || null;
+  async extract({ session }) {
+    const name = String(session || "").trim();
+    if (!name) return null;
+    const doc = await sessionCollection.findOne({ sessionName: name });
+    return doc?.data || null;
   },
-  async delete({ clientId }) {
-    await sessionCollection.deleteOne({ clientId });
+  async delete({ session }) {
+    const name = String(session || "").trim();
+    if (!name) return;
+    await sessionCollection.deleteOne({ sessionName: name });
   },
 };
 
