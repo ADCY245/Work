@@ -5,7 +5,7 @@
   "type": "module",
   "main": "src/index.js",
   "scripts": {
-    "postinstall": "node node_modules/puppeteer/install.mjs",
+    "postinstall": "PUPPETEER_CACHE_DIR=$(pwd)/.cache/puppeteer node node_modules/puppeteer/install.mjs",
     "start": "node src/index.js"
   },
   "dependencies": {

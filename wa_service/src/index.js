@@ -78,7 +78,8 @@ function ensureChrome() {
     return process.env.CHROME_PATH;
   }
 
-  const cacheDir = process.env.PUPPETEER_CACHE_DIR || "/opt/render/.cache/puppeteer";
+  // Use project-relative path that persists from build to runtime on Render
+  const cacheDir = process.env.PUPPETEER_CACHE_DIR || "/opt/render/project/src/wa_service/.cache/puppeteer";
 
   // Newer puppeteer: cacheDir/chrome/linux-*/...
   const chromeRoot = join(cacheDir, "chrome");
