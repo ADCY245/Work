@@ -5,6 +5,7 @@ import qrcode from "qrcode";
 import { MongoClient } from "mongodb";
 import { readdirSync, existsSync } from "fs";
 import { join } from "path";
+import puppeteer from "puppeteer";
 import whatsappPkg from "whatsapp-web.js";
 
 const { Client, RemoteAuth } = whatsappPkg;
@@ -66,117 +67,125 @@ const store = {
   },
 };
 
-// Resolve Chrome executable from puppeteer cache (whatsapp-web.js bundles puppeteer-core with different version)
-function findChromeExecutable() {
+// Download and find Chrome executable
+// Render doesn't persist puppeteer cache between build and runtime, so we download at startup
+async function ensureChrome() {
   // Allow override via env
-  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
-  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    console.log("Using PUPPETEER_EXECUTABLE_PATH:", process.env.PUPPETEER_EXECUTABLE_PATH);
+    return process.env.PUPPETEER_EXECUTABLE_PATH;
+  }
+  if (process.env.CHROME_PATH) {
+    console.log("Using CHROME_PATH:", process.env.CHROME_PATH);
+    return process.env.CHROME_PATH;
+  }
 
   const cacheDir = process.env.PUPPETEER_CACHE_DIR || "/opt/render/.cache/puppeteer";
   const chromeRoot = join(cacheDir, "chrome");
 
-  if (!existsSync(chromeRoot)) {
-    console.log("Chrome root not found:", chromeRoot);
-    return null;
-  }
-
-  // Find the versioned directory (e.g., linux-131.0.6778.204)
-  const dirs = readdirSync(chromeRoot).filter(d => d.startsWith("linux-"));
-  if (!dirs.length) {
-    console.log("No linux-* dirs in:", chromeRoot);
-    return null;
-  }
-
-  const versionDir = dirs[0];
-  console.log("Found Chrome version dir:", versionDir);
-
-  // Try multiple possible paths for the executable
-  const possiblePaths = [
-    // Puppeteer's actual structure: chrome/linux-VERSION/chrome/linux-VERSION/chrome
-    join(chromeRoot, versionDir, "chrome", versionDir, "chrome"),
-    // Alternative: chrome/linux-VERSION/chrome/chrome
-    join(chromeRoot, versionDir, "chrome", "chrome"),
-    // Direct: chrome/linux-VERSION/chrome
-    join(chromeRoot, versionDir, "chrome"),
-  ];
-
-  for (const p of possiblePaths) {
-    console.log("Checking path:", p, "exists:", existsSync(p));
-    if (existsSync(p)) return p;
-  }
-
-  // Fallback: check for chrome-headless-shell
-  const headlessRoot = join(cacheDir, "chrome-headless-shell");
-  if (existsSync(headlessRoot)) {
-    const headlessDirs = readdirSync(headlessRoot).filter(d => d.startsWith("linux-"));
-    if (headlessDirs.length) {
-      const headlessPath = join(headlessRoot, headlessDirs[0], "chrome-headless-shell");
-      if (existsSync(headlessPath)) return headlessPath;
+  // Check if Chrome already exists
+  if (existsSync(chromeRoot)) {
+    const dirs = readdirSync(chromeRoot).filter(d => d.startsWith("linux-"));
+    if (dirs.length) {
+      const versionDir = dirs[0];
+      const possiblePaths = [
+        join(chromeRoot, versionDir, "chrome", versionDir, "chrome"),
+        join(chromeRoot, versionDir, "chrome", "chrome"),
+        join(chromeRoot, versionDir, "chrome"),
+      ];
+      for (const p of possiblePaths) {
+        if (existsSync(p)) {
+          console.log("Found existing Chrome at:", p);
+          return p;
+        }
+      }
     }
   }
 
+  // Download Chrome using puppeteer
+  console.log("Downloading Chrome via puppeteer...");
+  const browserFetcher = puppeteer.createBrowserFetcher({
+    path: cacheDir,
+  });
+  
+  const revision = "131.0.6778.204"; // Match puppeteer version
+  const revisionInfo = await browserFetcher.download(revision, (downloaded, total) => {
+    console.log(`Downloading Chrome: ${Math.round(downloaded / total * 100)}%`);
+  });
+
+  if (revisionInfo.executablePath) {
+    console.log("Chrome downloaded to:", revisionInfo.executablePath);
+    return revisionInfo.executablePath;
+  }
+
+  console.warn("Failed to download Chrome");
   return null;
 }
 
-const CHROME_EXECUTABLE = findChromeExecutable();
-if (CHROME_EXECUTABLE) {
-  console.log("Using Chrome at:", CHROME_EXECUTABLE);
-} else {
-  console.warn("Chrome executable not found in puppeteer cache");
-}
-
-const waClient = new Client({
-  authStrategy: new RemoteAuth({
-    clientId: process.env.WA_CLIENT_ID || "physihome",
-    store,
-    backupSyncIntervalMs: 300000,
-  }),
-  puppeteer: {
-    headless: true,
-    executablePath: CHROME_EXECUTABLE,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-first-run",
-      "--no-zygote",
-      "--single-process",
-      "--disable-gpu",
-    ],
-  },
-});
-
+// Initialize Chrome and WhatsApp client
+let CHROME_EXECUTABLE = null;
+let waClient = null;
 let latestQrDataUrl = null;
 let isReady = false;
 let lastError = null;
 
-waClient.on("qr", async (qr) => {
-  try {
-    latestQrDataUrl = await qrcode.toDataURL(qr);
-    isReady = false;
-  } catch (e) {
-    lastError = String(e);
+async function initWhatsApp() {
+  CHROME_EXECUTABLE = await ensureChrome();
+  if (!CHROME_EXECUTABLE) {
+    throw new Error("Failed to get Chrome executable");
   }
-});
 
-waClient.on("ready", () => {
-  isReady = true;
-  latestQrDataUrl = null;
-  lastError = null;
-});
+  waClient = new Client({
+    authStrategy: new RemoteAuth({
+      clientId: process.env.WA_CLIENT_ID || "physihome",
+      store,
+      backupSyncIntervalMs: 300000,
+    }),
+    puppeteer: {
+      headless: true,
+      executablePath: CHROME_EXECUTABLE,
+      args: [
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-accelerated-2d-canvas",
+        "--no-first-run",
+        "--no-zygote",
+        "--single-process",
+        "--disable-gpu",
+      ],
+    },
+  });
 
-waClient.on("auth_failure", (msg) => {
-  isReady = false;
-  lastError = String(msg);
-});
+  waClient.on("qr", async (qr) => {
+    try {
+      latestQrDataUrl = await qrcode.toDataURL(qr);
+      isReady = false;
+    } catch (e) {
+      lastError = String(e);
+    }
+  });
 
-waClient.on("disconnected", (reason) => {
-  isReady = false;
-  lastError = String(reason);
-});
+  waClient.on("ready", () => {
+    isReady = true;
+    latestQrDataUrl = null;
+    lastError = null;
+  });
 
-await waClient.initialize();
+  waClient.on("auth_failure", (msg) => {
+    isReady = false;
+    lastError = String(msg);
+  });
+
+  waClient.on("disconnected", (reason) => {
+    isReady = false;
+    lastError = String(reason);
+  });
+
+  await waClient.initialize();
+}
+
+await initWhatsApp();
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
