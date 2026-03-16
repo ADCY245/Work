@@ -3,7 +3,9 @@ import "dotenv/config";
 import express from "express";
 import qrcode from "qrcode";
 import { MongoClient } from "mongodb";
-import { Client, RemoteAuth } from "whatsapp-web.js";
+import whatsappPkg from "whatsapp-web.js";
+
+const { Client, RemoteAuth } = whatsappPkg;
 
 const PORT = Number(process.env.PORT || 3001);
 const MONGODB_URI = process.env.MONGODB_URI;
