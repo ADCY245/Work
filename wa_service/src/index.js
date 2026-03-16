@@ -5,7 +5,6 @@ import qrcode from "qrcode";
 import { MongoClient } from "mongodb";
 import { readdirSync, existsSync } from "fs";
 import { join } from "path";
-import puppeteer from "puppeteer";
 import whatsappPkg from "whatsapp-web.js";
 
 const { Client, RemoteAuth } = whatsappPkg;
@@ -67,9 +66,8 @@ const store = {
   },
 };
 
-// Download and find Chrome executable
-// Render doesn't persist puppeteer cache between build and runtime, so we download at startup
-async function ensureChrome() {
+// Find Chrome executable downloaded by puppeteer postinstall.
+function ensureChrome() {
   // Allow override via env
   if (process.env.PUPPETEER_EXECUTABLE_PATH) {
     console.log("Using PUPPETEER_EXECUTABLE_PATH:", process.env.PUPPETEER_EXECUTABLE_PATH);
@@ -81,44 +79,45 @@ async function ensureChrome() {
   }
 
   const cacheDir = process.env.PUPPETEER_CACHE_DIR || "/opt/render/.cache/puppeteer";
-  const chromeRoot = join(cacheDir, "chrome");
 
-  // Check if Chrome already exists
+  // Newer puppeteer: cacheDir/chrome/linux-*/...
+  const chromeRoot = join(cacheDir, "chrome");
   if (existsSync(chromeRoot)) {
-    const dirs = readdirSync(chromeRoot).filter(d => d.startsWith("linux-"));
-    if (dirs.length) {
-      const versionDir = dirs[0];
+    const dirs = readdirSync(chromeRoot).filter((d) => d.startsWith("linux-"));
+    for (const versionDir of dirs) {
       const possiblePaths = [
-        join(chromeRoot, versionDir, "chrome", versionDir, "chrome"),
         join(chromeRoot, versionDir, "chrome", "chrome"),
+        join(chromeRoot, versionDir, "chrome", versionDir, "chrome"),
         join(chromeRoot, versionDir, "chrome"),
       ];
       for (const p of possiblePaths) {
         if (existsSync(p)) {
-          console.log("Found existing Chrome at:", p);
+          console.log("Found Chrome at:", p);
           return p;
         }
       }
     }
   }
 
-  // Download Chrome using puppeteer
-  console.log("Downloading Chrome via puppeteer...");
-  const browserFetcher = puppeteer.createBrowserFetcher({
-    path: cacheDir,
-  });
-  
-  const revision = "131.0.6778.204"; // Match puppeteer version
-  const revisionInfo = await browserFetcher.download(revision, (downloaded, total) => {
-    console.log(`Downloading Chrome: ${Math.round(downloaded / total * 100)}%`);
-  });
-
-  if (revisionInfo.executablePath) {
-    console.log("Chrome downloaded to:", revisionInfo.executablePath);
-    return revisionInfo.executablePath;
+  // Headless shell fallback
+  const headlessRoot = join(cacheDir, "chrome-headless-shell");
+  if (existsSync(headlessRoot)) {
+    const dirs = readdirSync(headlessRoot).filter((d) => d.startsWith("linux-"));
+    for (const versionDir of dirs) {
+      const possiblePaths = [
+        join(headlessRoot, versionDir, "chrome-headless-shell"),
+        join(headlessRoot, versionDir, "chrome-headless-shell", "chrome-headless-shell"),
+      ];
+      for (const p of possiblePaths) {
+        if (existsSync(p)) {
+          console.log("Found chrome-headless-shell at:", p);
+          return p;
+        }
+      }
+    }
   }
 
-  console.warn("Failed to download Chrome");
+  console.warn("Chrome executable not found; set PUPPETEER_EXECUTABLE_PATH");
   return null;
 }
 
@@ -130,7 +129,7 @@ let isReady = false;
 let lastError = null;
 
 async function initWhatsApp() {
-  CHROME_EXECUTABLE = await ensureChrome();
+  CHROME_EXECUTABLE = ensureChrome();
   if (!CHROME_EXECUTABLE) {
     throw new Error("Failed to get Chrome executable");
   }
