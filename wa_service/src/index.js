@@ -3,6 +3,8 @@ import "dotenv/config";
 import express from "express";
 import qrcode from "qrcode";
 import { MongoClient } from "mongodb";
+import { readdirSync, existsSync } from "fs";
+import { join } from "path";
 import whatsappPkg from "whatsapp-web.js";
 
 const { Client, RemoteAuth } = whatsappPkg;
@@ -64,6 +66,40 @@ const store = {
   },
 };
 
+// Resolve Chrome executable from puppeteer cache (whatsapp-web.js bundles puppeteer-core with different version)
+function findChromeExecutable() {
+  // Allow override via env
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) return process.env.PUPPETEER_EXECUTABLE_PATH;
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+
+  const cacheDir = process.env.PUPPETEER_CACHE_DIR || "/opt/render/.cache/puppeteer";
+  const chromeRoot = join(cacheDir, "chrome");
+
+  if (!existsSync(chromeRoot)) return null;
+
+  // Find the versioned directory (e.g., linux-131.0.6778.204)
+  const dirs = readdirSync(chromeRoot).filter(d => d.startsWith("linux-"));
+  if (!dirs.length) return null;
+
+  // Use the first available version
+  const versionDir = dirs[0];
+  const chromePath = join(chromeRoot, versionDir, "chrome", "chrome");
+  if (existsSync(chromePath)) return chromePath;
+
+  // Fallback: check for chrome-headless-shell
+  const headlessPath = join(cacheDir, "chrome-headless-shell", versionDir, "chrome-headless-shell");
+  if (existsSync(headlessPath)) return headlessPath;
+
+  return null;
+}
+
+const CHROME_EXECUTABLE = findChromeExecutable();
+if (CHROME_EXECUTABLE) {
+  console.log("Using Chrome at:", CHROME_EXECUTABLE);
+} else {
+  console.warn("Chrome executable not found in puppeteer cache");
+}
+
 const waClient = new Client({
   authStrategy: new RemoteAuth({
     clientId: process.env.WA_CLIENT_ID || "physihome",
@@ -72,6 +108,7 @@ const waClient = new Client({
   }),
   puppeteer: {
     headless: true,
+    executablePath: CHROME_EXECUTABLE,
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
