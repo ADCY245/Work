@@ -26,7 +26,7 @@ from app.services.auth_utils import (
     verify_password,
 )
 from app.services.emailer import send_email
-from app.services.meta_whatsapp import send_whatsapp
+from app.services.whatsapp import send_whatsapp
 
 settings = get_settings()
 

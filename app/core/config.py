@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     meta_whatsapp_phone_number_id: str | None = Field(default=None, alias="META_WHATSAPP_PHONE_NUMBER_ID")
     meta_whatsapp_api_version: str | None = Field(default="v19.0", alias="META_WHATSAPP_API_VERSION")
 
+    twilio_account_sid: str | None = Field(default=None, alias="TWILIO_ACCOUNT_SID")
+    twilio_auth_token: str | None = Field(default=None, alias="TWILIO_AUTH_TOKEN")
+    twilio_whatsapp_from: str | None = Field(default=None, alias="TWILIO_WHATSAPP_FROM")
+
     admin_emails: list[str] = Field(
         default_factory=list,
         alias="ADMIN_EMAILS",
