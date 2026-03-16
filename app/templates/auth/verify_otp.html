@@ -19,6 +19,10 @@
   <div class="alert warn">We could not send the OTP email. {{ email_error }}</div>
   {% endif %}
 
+  {% if whatsapp_error %}
+  <div class="alert warn">We could not send the OTP WhatsApp message. {{ whatsapp_error }}</div>
+  {% endif %}
+
   {% if admin_email_error %}
   <div class="alert warn">We could not notify admins about your documents. {{ admin_email_error }}</div>
   {% endif %}

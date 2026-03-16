@@ -109,6 +109,44 @@ async def _send_otp_whatsapp(phone: str | None, otp: str, purpose: str) -> None:
         logger.info("Meta WhatsApp OTP exception (purpose=%s, phone=%s): %s", purpose, phone, str(exc))
 
 
+async def _send_otp(email: str, phone: str | None, otp: str, purpose: str) -> dict[str, Any]:
+    email_error = await _send_otp_email(email, otp)
+
+    whatsapp_error: str | None = None
+    try:
+        message = f"Your PhysiHome {purpose} OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
+        whatsapp_error = await send_whatsapp(phone, message)
+        if whatsapp_error:
+            logger.info("Meta WhatsApp OTP not sent (purpose=%s, phone=%s): %s", purpose, phone, whatsapp_error)
+        else:
+            logger.info("Meta WhatsApp OTP sent (purpose=%s, phone=%s)", purpose, phone)
+    except Exception as exc:
+        whatsapp_error = str(exc)
+        logger.info("Meta WhatsApp OTP exception (purpose=%s, phone=%s): %s", purpose, phone, whatsapp_error)
+
+    sent_email = email_error is None
+    sent_whatsapp = whatsapp_error is None
+    sent_any = sent_email or sent_whatsapp
+
+    delivered_to: list[str] = []
+    if sent_email:
+        delivered_to.append("email")
+    if sent_whatsapp:
+        delivered_to.append("whatsapp")
+    delivery_message = ""
+    if delivered_to:
+        delivery_message = "OTP sent via " + " and ".join(delivered_to) + "."
+
+    return {
+        "email_error": email_error,
+        "whatsapp_error": whatsapp_error,
+        "sent_email": sent_email,
+        "sent_whatsapp": sent_whatsapp,
+        "sent_any": sent_any,
+        "delivery_message": delivery_message,
+    }
+
+
 async def _send_password_reset_otp_email(email: str, otp: str) -> str | None:
     subject = "Your PhysiHome password reset code"
     body = f"Your password reset OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
@@ -117,6 +155,44 @@ async def _send_password_reset_otp_email(email: str, otp: str) -> str | None:
         return None
     except Exception as exc:  # pragma: no cover
         return str(exc)
+
+
+async def _send_password_reset_otp(email: str, phone: str | None, otp: str) -> dict[str, Any]:
+    email_error = await _send_password_reset_otp_email(email, otp)
+
+    whatsapp_error: str | None = None
+    try:
+        message = f"Your PhysiHome password reset OTP is {otp}. It expires in {settings.otp_expiry_minutes} minutes."
+        whatsapp_error = await send_whatsapp(phone, message)
+        if whatsapp_error:
+            logger.info("Meta WhatsApp OTP not sent (purpose=%s, phone=%s): %s", "password reset", phone, whatsapp_error)
+        else:
+            logger.info("Meta WhatsApp OTP sent (purpose=%s, phone=%s)", "password reset", phone)
+    except Exception as exc:
+        whatsapp_error = str(exc)
+        logger.info("Meta WhatsApp OTP exception (purpose=%s, phone=%s): %s", "password reset", phone, whatsapp_error)
+
+    sent_email = email_error is None
+    sent_whatsapp = whatsapp_error is None
+    sent_any = sent_email or sent_whatsapp
+
+    delivered_to: list[str] = []
+    if sent_email:
+        delivered_to.append("email")
+    if sent_whatsapp:
+        delivered_to.append("whatsapp")
+    delivery_message = ""
+    if delivered_to:
+        delivery_message = "OTP sent via " + " and ".join(delivered_to) + "."
+
+    return {
+        "email_error": email_error,
+        "whatsapp_error": whatsapp_error,
+        "sent_email": sent_email,
+        "sent_whatsapp": sent_whatsapp,
+        "sent_any": sent_any,
+        "delivery_message": delivery_message,
+    }
 
 
 def _set_session_cookie(response: RedirectResponse, session_token: str) -> None:
@@ -248,9 +324,20 @@ async def signup(
         await db.users.update_one({"_id": existing["_id"]}, {"$set": update_fields})
     else:
         await db.users.insert_one(user_doc)
-    email_error = await _send_otp_email(normalized_email, otp)
-    await _send_otp_whatsapp(phone_clean, otp, "verification")
+    otp_result = await _send_otp(normalized_email, phone_clean, otp, "verification")
+    email_error = otp_result.get("email_error")
+    whatsapp_error = otp_result.get("whatsapp_error")
     otp_debug = otp if email_error else None
+
+    if not otp_result.get("sent_any"):
+        return templates.TemplateResponse(
+            "auth/signup.html",
+            base_context(
+                request,
+                error="We could not send your OTP. Please try again in a moment.",
+            ),
+            status_code=500,
+        )
 
     return templates.TemplateResponse(
         "auth/verify_otp.html",
@@ -259,6 +346,8 @@ async def signup(
             email=normalized_email,
             role="user",
             email_error=email_error,
+            whatsapp_error=whatsapp_error,
+            success_message=otp_result.get("delivery_message") or None,
             otp_debug=otp_debug,
         ),
     )
@@ -380,9 +469,20 @@ async def doctor_signup(
     else:
         await db.pending_users.insert_one(pending_user_doc)
 
-    email_error = await _send_otp_email(normalized_email, otp)
-    await _send_otp_whatsapp(phone_clean, otp, "verification")
+    otp_result = await _send_otp(normalized_email, phone_clean, otp, "verification")
+    email_error = otp_result.get("email_error")
+    whatsapp_error = otp_result.get("whatsapp_error")
     otp_debug = otp if email_error else None
+
+    if not otp_result.get("sent_any"):
+        return templates.TemplateResponse(
+            "auth/signup_doctor.html",
+            base_context(
+                request,
+                error="We could not send your OTP. Please try again in a moment.",
+            ),
+            status_code=500,
+        )
 
     attachments = [
         (self_payload["filename"], self_payload["data"], self_payload["content_type"]),
@@ -398,6 +498,21 @@ async def doctor_signup(
         )
     admin_email_error = await _send_doctor_documents_email(normalized_email, attachments)
 
+    otp_result = await _send_otp(normalized_email, phone_clean, otp, "verification")
+    email_error = otp_result.get("email_error")
+    whatsapp_error = otp_result.get("whatsapp_error")
+    otp_debug = otp if email_error else None
+
+    if not otp_result.get("sent_any"):
+        return templates.TemplateResponse(
+            "auth/signup_doctor.html",
+            base_context(
+                request,
+                error="We could not send your OTP. Please try again in a moment.",
+            ),
+            status_code=500,
+        )
+
     return templates.TemplateResponse(
         "auth/verify_otp.html",
         base_context(
@@ -405,7 +520,9 @@ async def doctor_signup(
             email=normalized_email,
             role="doctor",
             email_error=email_error,
+            whatsapp_error=whatsapp_error,
             admin_email_error=admin_email_error,
+            success_message=otp_result.get("delivery_message") or None,
             otp_debug=otp_debug,
         ),
     )
@@ -485,9 +602,22 @@ async def resend_otp(
             },
         )
 
-    email_error = await _send_otp_email(normalized_email, otp)
-    await _send_otp_whatsapp(target_user.get("phone"), otp, "verification")
+    otp_result = await _send_otp(normalized_email, target_user.get("phone"), otp, "verification")
+    email_error = otp_result.get("email_error")
+    whatsapp_error = otp_result.get("whatsapp_error")
     otp_debug = otp if email_error else None
+
+    if not otp_result.get("sent_any"):
+        return templates.TemplateResponse(
+            "auth/verify_otp.html",
+            base_context(
+                request,
+                email=normalized_email,
+                role=role,
+                error="We could not resend your OTP. Please try again in a moment.",
+            ),
+            status_code=500,
+        )
 
     return templates.TemplateResponse(
         "auth/verify_otp.html",
@@ -496,8 +626,9 @@ async def resend_otp(
             email=normalized_email,
             role=role,
             email_error=email_error,
+            whatsapp_error=whatsapp_error,
             otp_debug=otp_debug,
-            success_message="We sent a new code. Please check your inbox.",
+            success_message=otp_result.get("delivery_message") or "We sent a new code.",
         ),
     )
 
@@ -650,7 +781,9 @@ async def forgot_password_handler(
     otp_expires_at = now + timedelta(minutes=settings.otp_expiry_minutes)
 
     email_error = None
+    whatsapp_error = None
     otp_debug = None
+    otp_result: dict[str, Any] | None = None
     if user and user.get("is_otp_verified"):
         await db.users.update_one(
             {"_id": user["_id"]},
@@ -658,15 +791,25 @@ async def forgot_password_handler(
                 "$set": {
                     "reset_password_otp_hash": otp_hash,
                     "reset_password_otp_expires_at": otp_expires_at,
-                },
-                "$unset": {
-                    "reset_password_otp_verified_expires_at": "",
-                },
+                }
             },
         )
-        email_error = await _send_password_reset_otp_email(normalized_email, otp)
-        await _send_otp_whatsapp(user.get("phone"), otp, "password reset")
+
+        otp_result = await _send_password_reset_otp(normalized_email, user.get("phone"), otp)
+        email_error = otp_result.get("email_error")
+        whatsapp_error = otp_result.get("whatsapp_error")
         otp_debug = otp if email_error else None
+
+        if not otp_result.get("sent_any"):
+            return templates.TemplateResponse(
+                "auth/reset_password_otp.html",
+                base_context(
+                    request,
+                    email=normalized_email,
+                    error="We could not send your OTP. Please try again in a moment.",
+                ),
+                status_code=500,
+            )
 
     return templates.TemplateResponse(
         "auth/reset_password_otp.html",
@@ -674,8 +817,9 @@ async def forgot_password_handler(
             request,
             email=normalized_email,
             email_error=email_error,
+            whatsapp_error=whatsapp_error,
             otp_debug=otp_debug,
-            success_message="If this email exists, we sent a code. Please check your inbox.",
+            success_message=(otp_result.get("delivery_message") if otp_result else None),
         ),
     )
 
@@ -826,9 +970,22 @@ async def update_profile(
         updates["otp_expires_at"] = otp_expires_at
 
         await db.users.update_one({"_id": user["_id"]}, {"$set": updates})
-        email_error = await _send_otp_email(normalized_email, otp)
-        await _send_otp_whatsapp(updates.get("phone"), otp, "verification")
+        otp_result = await _send_otp(normalized_email, updates.get("phone"), otp, "verification")
+        email_error = otp_result.get("email_error")
+        whatsapp_error = otp_result.get("whatsapp_error")
         otp_debug = otp if email_error else None
+
+        if not otp_result.get("sent_any"):
+            return templates.TemplateResponse(
+                "auth/verify_otp.html",
+                base_context(
+                    request,
+                    email=normalized_email,
+                    role=user.get("role"),
+                    error="We could not send your OTP. Please try again in a moment.",
+                ),
+                status_code=500,
+            )
         return templates.TemplateResponse(
             "auth/verify_otp.html",
             base_context(
@@ -836,8 +993,9 @@ async def update_profile(
                 email=normalized_email,
                 role=user.get("role"),
                 email_error=email_error,
+                whatsapp_error=whatsapp_error,
                 otp_debug=otp_debug,
-                success_message="We sent a verification code to your new email.",
+                success_message=otp_result.get("delivery_message") or None,
             ),
         )
 
