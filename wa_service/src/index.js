@@ -75,20 +75,45 @@ function findChromeExecutable() {
   const cacheDir = process.env.PUPPETEER_CACHE_DIR || "/opt/render/.cache/puppeteer";
   const chromeRoot = join(cacheDir, "chrome");
 
-  if (!existsSync(chromeRoot)) return null;
+  if (!existsSync(chromeRoot)) {
+    console.log("Chrome root not found:", chromeRoot);
+    return null;
+  }
 
   // Find the versioned directory (e.g., linux-131.0.6778.204)
   const dirs = readdirSync(chromeRoot).filter(d => d.startsWith("linux-"));
-  if (!dirs.length) return null;
+  if (!dirs.length) {
+    console.log("No linux-* dirs in:", chromeRoot);
+    return null;
+  }
 
-  // Use the first available version
   const versionDir = dirs[0];
-  const chromePath = join(chromeRoot, versionDir, "chrome", "chrome");
-  if (existsSync(chromePath)) return chromePath;
+  console.log("Found Chrome version dir:", versionDir);
+
+  // Try multiple possible paths for the executable
+  const possiblePaths = [
+    // Puppeteer's actual structure: chrome/linux-VERSION/chrome/linux-VERSION/chrome
+    join(chromeRoot, versionDir, "chrome", versionDir, "chrome"),
+    // Alternative: chrome/linux-VERSION/chrome/chrome
+    join(chromeRoot, versionDir, "chrome", "chrome"),
+    // Direct: chrome/linux-VERSION/chrome
+    join(chromeRoot, versionDir, "chrome"),
+  ];
+
+  for (const p of possiblePaths) {
+    console.log("Checking path:", p, "exists:", existsSync(p));
+    if (existsSync(p)) return p;
+  }
 
   // Fallback: check for chrome-headless-shell
-  const headlessPath = join(cacheDir, "chrome-headless-shell", versionDir, "chrome-headless-shell");
-  if (existsSync(headlessPath)) return headlessPath;
+  const headlessRoot = join(cacheDir, "chrome-headless-shell");
+  if (existsSync(headlessRoot)) {
+    const headlessDirs = readdirSync(headlessRoot).filter(d => d.startsWith("linux-"));
+    if (headlessDirs.length) {
+      const headlessPath = join(headlessRoot, headlessDirs[0], "chrome-headless-shell");
+      if (existsSync(headlessPath)) return headlessPath;
+    }
+  }
 
   return null;
 }
