@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.core.config import get_settings
+from starlette.concurrency import run_in_threadpool
 
 settings = get_settings()
 
@@ -28,7 +29,7 @@ def _twilio_ready() -> bool:
     return bool(settings.twilio_account_sid and settings.twilio_auth_token and settings.twilio_whatsapp_from)
 
 
-def send_whatsapp(to_phone: str | None, body: str) -> str | None:
+def _send_whatsapp_sync(to_phone: str | None, body: str) -> str | None:
     if not _twilio_ready():
         return "Twilio WhatsApp not configured"
 
@@ -49,3 +50,7 @@ def send_whatsapp(to_phone: str | None, body: str) -> str | None:
         return str(exc)
 
     return None
+
+
+async def send_whatsapp(to_phone: str | None, body: str) -> str | None:
+    return await run_in_threadpool(_send_whatsapp_sync, to_phone, body)
