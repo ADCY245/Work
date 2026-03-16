@@ -48,6 +48,10 @@ class Settings(BaseSettings):
     twilio_auth_token: str | None = Field(default=None, alias="TWILIO_AUTH_TOKEN")
     twilio_whatsapp_from: str | None = Field(default=None, alias="TWILIO_WHATSAPP_FROM")
 
+    whatsapp_provider: str = Field(default="twilio", alias="WHATSAPP_PROVIDER")
+    wa_web_service_url: str | None = Field(default=None, alias="WA_WEB_SERVICE_URL")
+    wa_web_service_auth_token: str | None = Field(default=None, alias="WA_WEB_SERVICE_AUTH_TOKEN")
+
     admin_emails: list[str] = Field(
         default_factory=list,
         alias="ADMIN_EMAILS",

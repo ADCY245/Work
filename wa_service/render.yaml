@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: physihome-wa-service
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: npm start
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: WA_MONGO_DB
+        value: physihome
+      - key: WA_MONGO_COLLECTION
+        value: wa_sessions
