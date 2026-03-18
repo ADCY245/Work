@@ -70,7 +70,10 @@ async def send_whatsapp(to_phone: str | None, body: str) -> str | None:
 
         def _call_wa_web() -> str | None:
             url = str(settings.wa_web_service_url).rstrip("/") + "/send"
-            headers = {"Authorization": f"Bearer {str(settings.wa_web_service_auth_token).strip()}"}
+            headers = {
+                "Authorization": f"Bearer {str(settings.wa_web_service_auth_token).strip()}",
+                "ngrok-skip-browser-warning": "true",
+            }
             payload = {"to": to_e164, "body": body}
             with httpx.Client(timeout=15.0) as client:
                 resp = client.post(url, json=payload, headers=headers)
