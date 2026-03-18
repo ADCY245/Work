@@ -7,6 +7,7 @@ import secrets
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from cryptography.fernet import Fernet, InvalidToken
 from fastapi import APIRouter, Form, Request, Query
 from fastapi.templating import Jinja2Templates
 from bson import ObjectId
