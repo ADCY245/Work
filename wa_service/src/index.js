@@ -238,7 +238,37 @@ async function ensureWhatsApp() {
       _resetClient(reason).catch(() => {});
     });
 
-    await waClient.initialize();
+    // Handle Puppeteer navigation errors
+    waClient.on("change_state", (state) => {
+      console.log("WhatsApp state changed:", state);
+      if (state === "UNPAIRED" || state === "UNPAIRED_IDLE") {
+        lastError = null; // Clear error, allow QR generation
+      }
+    });
+
+    waClient.on("labeled_error", (err) => {
+      console.error("WhatsApp labeled error:", err);
+      if (String(err).includes("detached") || String(err).includes("frame")) {
+        lastError = String(err);
+        // Trigger reset after short delay
+        setTimeout(() => _resetClient(err).catch(() => {}), 2000);
+      }
+    });
+
+    try {
+      await waClient.initialize();
+    } catch (initError) {
+      console.error("WhatsApp initialize error:", initError);
+      lastError = String(initError);
+      // If navigation/frame error, schedule reset and retry
+      if (String(initError).includes("detached") || String(initError).includes("frame") || String(initError).includes("navigation")) {
+        setTimeout(() => {
+          console.log("Retrying WhatsApp initialization after navigation error...");
+          _resetClient(initError).catch(() => {});
+        }, 3000);
+      }
+      throw initError;
+    }
     _touchIdleShutdown();
     return waClient;
   } finally {
