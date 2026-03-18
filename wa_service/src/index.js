@@ -153,7 +153,7 @@ async function _resetClient(reason) {
 }
 
 function _touchIdleShutdown() {
-  const ms = Number(process.env.WA_IDLE_SHUTDOWN_MS || 120000);
+  const ms = Number(process.env.WA_IDLE_SHUTDOWN_MS || 300000);
   if (!Number.isFinite(ms) || ms <= 0) return;
   _clearIdleTimer();
   idleTimer = setTimeout(() => {
@@ -244,6 +244,7 @@ app.get("/health", (req, res) => {
 
 app.get("/qr", requireAuth, async (req, res) => {
   try {
+    console.log("QR endpoint: client=", !!waClient, "qr=", !!latestQrDataUrl, "ready=", isReady, "init=", isInitializing);
     // Trigger initialization if not started
     if (!waClient) {
       // Start init in background, don't wait
@@ -258,7 +259,8 @@ app.get("/qr", requireAuth, async (req, res) => {
     _touchIdleShutdown();
     
     if (!latestQrDataUrl) {
-      return res.status(404).json({ ok: false, error: "no_qr" });
+      // Client exists but QR not generated yet
+      return res.status(202).json({ ok: false, error: "waiting_for_qr", message: "QR being generated, try again in 10-20 seconds" });
     }
     return res.json({ ok: true, qrDataUrl: latestQrDataUrl });
   } catch (e) {
