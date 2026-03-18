@@ -121,70 +121,87 @@ async function ensureChrome() {
   return null;
 }
 
-// Initialize Chrome and WhatsApp client
+// Initialize Chrome and WhatsApp client (lazy - only when needed)
 let CHROME_EXECUTABLE = null;
 let waClient = null;
 let latestQrDataUrl = null;
 let isReady = false;
 let lastError = null;
+let isInitializing = false;
 
-async function initWhatsApp() {
-  CHROME_EXECUTABLE = await ensureChrome();
-  if (!CHROME_EXECUTABLE) {
-    throw new Error("Failed to get Chrome executable");
-  }
-
-  waClient = new Client({
-    authStrategy: new RemoteAuth({
-      clientId: process.env.WA_CLIENT_ID || "physihome",
-      store,
-      backupSyncIntervalMs: 300000,
-    }),
-    puppeteer: {
-      headless: true,
-      executablePath: CHROME_EXECUTABLE,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-accelerated-2d-canvas",
-        "--no-first-run",
-        "--no-zygote",
-        "--single-process",
-        "--disable-gpu",
-      ],
-    },
-  });
-
-  waClient.on("qr", async (qr) => {
-    try {
-      latestQrDataUrl = await qrcode.toDataURL(qr);
-      isReady = false;
-    } catch (e) {
-      lastError = String(e);
+// Lazy initialization - only start WhatsApp when QR is requested
+async function ensureWhatsApp() {
+  if (waClient) return waClient;
+  if (isInitializing) throw new Error("Initializing, try again later");
+  
+  isInitializing = true;
+  try {
+    CHROME_EXECUTABLE = await ensureChrome();
+    if (!CHROME_EXECUTABLE) {
+      throw new Error("Failed to get Chrome executable");
     }
-  });
 
-  waClient.on("ready", () => {
-    isReady = true;
-    latestQrDataUrl = null;
-    lastError = null;
-  });
+    waClient = new Client({
+      authStrategy: new RemoteAuth({
+        clientId: process.env.WA_CLIENT_ID || "physihome",
+        store,
+        backupSyncIntervalMs: 300000,
+      }),
+      puppeteer: {
+        headless: true,
+        executablePath: CHROME_EXECUTABLE,
+        args: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--disable-accelerated-2d-canvas",
+          "--no-first-run",
+          "--no-zygote",
+          "--single-process",
+          "--disable-gpu",
+          "--disable-background-timer-throttling",
+          "--disable-backgrounding-occluded-windows",
+          "--disable-renderer-backgrounding",
+          "--memory-pressure-off",
+          "--max-old-space-size=256",
+        ],
+      },
+    });
 
-  waClient.on("auth_failure", (msg) => {
-    isReady = false;
-    lastError = String(msg);
-  });
+    waClient.on("qr", async (qr) => {
+      try {
+        latestQrDataUrl = await qrcode.toDataURL(qr);
+        isReady = false;
+      } catch (e) {
+        lastError = String(e);
+      }
+    });
 
-  waClient.on("disconnected", (reason) => {
-    isReady = false;
-    lastError = String(reason);
-  });
+    waClient.on("ready", () => {
+      isReady = true;
+      latestQrDataUrl = null;
+      lastError = null;
+    });
 
-  await waClient.initialize();
+    waClient.on("auth_failure", (msg) => {
+      isReady = false;
+      lastError = String(msg);
+    });
+
+    waClient.on("disconnected", (reason) => {
+      isReady = false;
+      lastError = String(reason);
+    });
+
+    await waClient.initialize();
+    return waClient;
+  } finally {
+    isInitializing = false;
+  }
 }
 
-await initWhatsApp();
+// Remove immediate init
+// await initWhatsApp();
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
@@ -215,6 +232,11 @@ function normalizeE164(raw) {
 
 app.post("/send", requireAuth, async (req, res) => {
   try {
+    // Ensure WhatsApp is initialized
+    if (!waClient) {
+      await ensureWhatsApp();
+    }
+    
     const toPhone = normalizeE164(req.body?.to);
     const body = String(req.body?.body || "").trim();
     if (!toPhone) return res.status(400).json({ ok: false, error: "invalid_phone" });
