@@ -93,11 +93,17 @@ async function ensureChrome() {
 
   const cacheDir = join(process.cwd(), '.cache', 'puppeteer');
   const buildId = '131.0.6778.204'; // Match puppeteer version
+
+  const platform = (() => {
+    if (process.platform === "win32") return BrowserPlatform.WIN64;
+    if (process.platform === "darwin") return BrowserPlatform.MAC;
+    return BrowserPlatform.LINUX;
+  })();
   
   // Check if already downloaded
   let executablePath = computeExecutablePath({
     browser: Browser.CHROME,
-    platform: BrowserPlatform.LINUX,
+    platform,
     buildId,
     cacheDir,
   });
@@ -112,14 +118,14 @@ async function ensureChrome() {
   
   await install({
     browser: Browser.CHROME,
-    platform: BrowserPlatform.LINUX,
+    platform,
     buildId,
     cacheDir,
   });
   
   executablePath = computeExecutablePath({
     browser: Browser.CHROME,
-    platform: BrowserPlatform.LINUX,
+    platform,
     buildId,
     cacheDir,
   });
