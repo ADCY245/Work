@@ -128,6 +128,38 @@ let latestQrDataUrl = null;
 let isReady = false;
 let lastError = null;
 let isInitializing = false;
+let idleTimer = null;
+
+function _clearIdleTimer() {
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+}
+
+async function _resetClient(reason) {
+  _clearIdleTimer();
+  latestQrDataUrl = null;
+  isReady = false;
+  if (reason) lastError = String(reason);
+  if (waClient) {
+    try {
+      await waClient.destroy();
+    } catch (e) {
+      // ignore
+    }
+  }
+  waClient = null;
+}
+
+function _touchIdleShutdown() {
+  const ms = Number(process.env.WA_IDLE_SHUTDOWN_MS || 120000);
+  if (!Number.isFinite(ms) || ms <= 0) return;
+  _clearIdleTimer();
+  idleTimer = setTimeout(() => {
+    _resetClient("idle_shutdown").catch(() => {});
+  }, ms);
+}
 
 // Lazy initialization - only start WhatsApp when QR is requested
 async function ensureWhatsApp() {
@@ -181,19 +213,19 @@ async function ensureWhatsApp() {
       isReady = true;
       latestQrDataUrl = null;
       lastError = null;
+      _touchIdleShutdown();
     });
 
     waClient.on("auth_failure", (msg) => {
-      isReady = false;
-      lastError = String(msg);
+      _resetClient(msg).catch(() => {});
     });
 
     waClient.on("disconnected", (reason) => {
-      isReady = false;
-      lastError = String(reason);
+      _resetClient(reason).catch(() => {});
     });
 
     await waClient.initialize();
+    _touchIdleShutdown();
     return waClient;
   } finally {
     isInitializing = false;
@@ -222,6 +254,8 @@ app.get("/qr", requireAuth, async (req, res) => {
       // Return waiting response
       return res.status(202).json({ ok: false, error: "initializing", message: "WhatsApp client starting, try again in 30-60 seconds" });
     }
+
+    _touchIdleShutdown();
     
     if (!latestQrDataUrl) {
       return res.status(404).json({ ok: false, error: "no_qr" });
@@ -251,6 +285,8 @@ app.post("/send", requireAuth, async (req, res) => {
     if (!waClient) {
       await ensureWhatsApp();
     }
+
+    _touchIdleShutdown();
     
     const toPhone = normalizeE164(req.body?.to);
     const body = String(req.body?.body || "").trim();
@@ -260,6 +296,8 @@ app.post("/send", requireAuth, async (req, res) => {
 
     const chatId = `${toPhone.slice(1)}@c.us`;
     await waClient.sendMessage(chatId, body);
+
+    _touchIdleShutdown();
 
     return res.json({ ok: true });
   } catch (e) {
