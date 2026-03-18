@@ -171,7 +171,9 @@ async function _resetClient(reason) {
 }
 
 function _touchIdleShutdown() {
-  const ms = Number(process.env.WA_IDLE_SHUTDOWN_MS || 300000);
+  // Default is long to support Render->ngrok callbacks without periodic traffic.
+  // Set WA_IDLE_SHUTDOWN_MS=0 to fully disable idle shutdown.
+  const ms = Number(process.env.WA_IDLE_SHUTDOWN_MS ?? 43200000);
   if (!Number.isFinite(ms) || ms <= 0) return;
   _clearIdleTimer();
   idleTimer = setTimeout(() => {
