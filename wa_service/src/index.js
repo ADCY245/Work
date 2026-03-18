@@ -337,9 +337,26 @@ app.post("/send", requireAuth, async (req, res) => {
     
     const toPhone = normalizeE164(req.body?.to);
     const body = String(req.body?.body || req.body?.message || "").trim();
-    if (!toPhone) return res.status(400).json({ ok: false, error: "invalid_phone" });
-    if (!body) return res.status(400).json({ ok: false, error: "empty_body" });
-    if (!isReady) return res.status(503).json({ ok: false, error: "not_ready" });
+    const stateSnapshot = {
+      ready: isReady,
+      hasQr: Boolean(latestQrDataUrl),
+      init: isInitializing,
+      hasClient: Boolean(waClient),
+      lastError,
+      at: new Date().toISOString(),
+    };
+    if (!toPhone) {
+      console.log("/send invalid_phone", { ip: req.ip, ua: req.get("user-agent"), ...stateSnapshot });
+      return res.status(400).json({ ok: false, error: "invalid_phone", state: stateSnapshot });
+    }
+    if (!body) {
+      console.log("/send empty_body", { ip: req.ip, ua: req.get("user-agent"), ...stateSnapshot });
+      return res.status(400).json({ ok: false, error: "empty_body", state: stateSnapshot });
+    }
+    if (!isReady) {
+      console.log("/send not_ready", { ip: req.ip, ua: req.get("user-agent"), ...stateSnapshot });
+      return res.status(503).json({ ok: false, error: "not_ready", state: stateSnapshot });
+    }
 
     const chatId = `${toPhone.slice(1)}@c.us`;
     await waClient.sendMessage(chatId, body);
