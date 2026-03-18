@@ -210,11 +210,26 @@ app.get("/health", (req, res) => {
   res.json({ ok: true, ready: isReady, hasQr: Boolean(latestQrDataUrl), lastError });
 });
 
-app.get("/qr", requireAuth, (req, res) => {
-  if (!latestQrDataUrl) {
-    return res.status(404).json({ ok: false, error: "no_qr" });
+app.get("/qr", requireAuth, async (req, res) => {
+  try {
+    // Trigger initialization if not started
+    if (!waClient) {
+      // Start init in background, don't wait
+      ensureWhatsApp().catch(e => {
+        console.error("Failed to initialize WhatsApp:", e);
+        lastError = String(e);
+      });
+      // Return waiting response
+      return res.status(202).json({ ok: false, error: "initializing", message: "WhatsApp client starting, try again in 30-60 seconds" });
+    }
+    
+    if (!latestQrDataUrl) {
+      return res.status(404).json({ ok: false, error: "no_qr" });
+    }
+    return res.json({ ok: true, qrDataUrl: latestQrDataUrl });
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e) });
   }
-  return res.json({ ok: true, qrDataUrl: latestQrDataUrl });
 });
 
 function normalizeE164(raw) {
