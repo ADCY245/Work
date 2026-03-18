@@ -4,34 +4,96 @@ import asyncio
 import logging
 import re
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from fastapi import APIRouter, Form, Request, Query
-from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from bson import ObjectId
-from cryptography.fernet import Fernet, InvalidToken
-from starlette.responses import JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
 from app.db import get_database
 from app.services.auth_utils import get_user_from_request, hash_password
-from app.services.meta_whatsapp import send_whatsapp
+from app.services.whatsapp import send_whatsapp
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 router = APIRouter()
 settings = get_settings()
-
+templates = Jinja2Templates(directory="app/templates")
 logger = logging.getLogger(__name__)
 
-AVATAR_MAP = {
-    "male": "/static/img/avatar-male.svg",
-    "female": "/static/img/avatar-female.svg",
-    "default": "/static/img/avatar-neutral.svg",
-}
+
+async def _maybe_notify_whatsapp_new_message(
+    db,
+    convo: dict,
+    sender: dict,
+    sender_id: str,
+) -> None:
+    try:
+        participants = [str(pid) for pid in (convo.get("participants") or [])]
+        recipient_ids = [pid for pid in participants if pid and pid != sender_id]
+        if not recipient_ids:
+            return
+
+        sender_name = f"{sender.get('first_name', '')} {sender.get('last_name', '')}".strip() or "Someone"
+        if str(sender.get("role") or "").strip().lower() == "doctor":
+            sender_name = f"Dr. {sender_name}".strip()
+        site_url = str(getattr(settings, "site_url", "") or "").strip()
+        notify_body = f"{sender_name} has sent you a message on PhysiHome."
+        if site_url:
+            notify_body = notify_body + f" Open: {site_url}"
+
+        convo_id = str(convo.get("_id") or "")
+        now = datetime.utcnow()
+        window_seconds = int(getattr(settings, "wa_message_notify_debounce_seconds", 120) or 120)
+        threshold = now - timedelta(seconds=window_seconds)
+
+        async def _notify_one(uid: str) -> None:
+            try:
+                other = await db.users.find_one({"_id": ObjectId(uid)})
+            except Exception:
+                other = None
+            if not other:
+                return
+
+            if other.get("whatsapp_notifications_enabled") is False:
+                return
+            phone = other.get("phone")
+            if not phone:
+                return
+
+            try:
+                existing = await db.wa_message_notify.find_one(
+                    {
+                        "conversation_id": convo_id,
+                        "recipient_id": uid,
+                        "updated_at": {"$gte": threshold},
+                    }
+                )
+                if existing:
+                    return
+                await db.wa_message_notify.update_one(
+                    {"conversation_id": convo_id, "recipient_id": uid},
+                    {"$set": {"updated_at": now}},
+                    upsert=True,
+                )
+            except Exception:
+                return
+
+            try:
+                await send_whatsapp(phone, notify_body)
+            except Exception:
+                return
+
+        for rid in recipient_ids:
+            asyncio.create_task(_notify_one(rid))
+    except Exception:
+        return
+
 
 
 def to_data_uri(payload):
@@ -836,30 +898,7 @@ async def api_send_message(request: Request, thread_id: str, text: str = Form(""
     )
     await db.conversations.update_one({"_id": convo_oid}, {"$set": {"updated_at": now}})
 
-    try:
-        participants = [str(pid) for pid in (convo.get("participants") or [])]
-        recipient_ids = [pid for pid in participants if pid and pid != user_id]
-        if recipient_ids:
-            sender_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip() or "Someone"
-            if str(user.get("role") or "").strip().lower() == "doctor":
-                sender_name = f"Dr. {sender_name}".strip()
-            notify_body = f"{sender_name} has messaged you on PhysiHome."
-
-            async def _notify_one(uid: str) -> None:
-                try:
-                    other = await db.users.find_one({"_id": ObjectId(uid)})
-                except Exception:
-                    other = None
-                phone = other.get("phone") if other else None
-                try:
-                    await send_whatsapp(phone, notify_body)
-                except Exception:
-                    pass
-
-            for rid in recipient_ids:
-                asyncio.create_task(_notify_one(rid))
-    except Exception:
-        pass
+    await _maybe_notify_whatsapp_new_message(db, convo, user, user_id)
 
     return JSONResponse(
         {
@@ -1000,6 +1039,7 @@ async def send_message(request: Request, thread_id: str, text: str = Form("")):
         }
     )
     await db.conversations.update_one({"_id": convo_oid}, {"$set": {"updated_at": now}})
+    await _maybe_notify_whatsapp_new_message(db, convo, user, user_id)
     return RedirectResponse(url=f"/messages/{thread_id}", status_code=303)
 
 
