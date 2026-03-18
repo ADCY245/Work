@@ -8,7 +8,7 @@ import { join } from "path";
 import { computeExecutablePath, Browser, BrowserPlatform, install } from '@puppeteer/browsers';
 import whatsappPkg from "whatsapp-web.js";
 
-const { Client, RemoteAuth } = whatsappPkg;
+const { Client, RemoteAuth, LocalAuth } = whatsappPkg;
 
 const PORT = Number(process.env.PORT || 3001);
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -29,43 +29,55 @@ function requireAuth(req, res, next) {
   return next();
 }
 
-if (!MONGODB_URI) {
-  throw new Error("MONGODB_URI is required for whatsapp-web.js RemoteAuth");
+let authStrategy;
+
+if (MONGODB_URI) {
+  console.log("Using RemoteAuth with MongoDB");
+  const mongo = new MongoClient(MONGODB_URI);
+  await mongo.connect();
+
+  const sessionCollection = mongo.db(SESSION_DB_NAME).collection(SESSION_COLLECTION);
+
+  const store = {
+    async sessionExists({ session }) {
+      const name = String(session || "").trim();
+      if (!name) return false;
+      const doc = await sessionCollection.findOne({ sessionName: name }, { projection: { _id: 1 } });
+      return Boolean(doc);
+    },
+    async save({ session, data }) {
+      const name = String(session || "").trim();
+      if (!name) return;
+      await sessionCollection.updateOne(
+        { sessionName: name },
+        { $set: { sessionName: name, data, updatedAt: new Date() } },
+        { upsert: true }
+      );
+    },
+    async extract({ session }) {
+      const name = String(session || "").trim();
+      if (!name) return null;
+      const doc = await sessionCollection.findOne({ sessionName: name });
+      return doc?.data || null;
+    },
+    async delete({ session }) {
+      const name = String(session || "").trim();
+      if (!name) return;
+      await sessionCollection.deleteOne({ sessionName: name });
+    },
+  };
+
+  authStrategy = new RemoteAuth({
+    clientId: process.env.WA_CLIENT_ID || "physihome",
+    store,
+    backupSyncIntervalMs: 300000,
+  });
+} else {
+  console.log("Using LocalAuth (local session storage)");
+  authStrategy = new LocalAuth({
+    clientId: process.env.WA_CLIENT_ID || "physihome",
+  });
 }
-
-const mongo = new MongoClient(MONGODB_URI);
-await mongo.connect();
-
-const sessionCollection = mongo.db(SESSION_DB_NAME).collection(SESSION_COLLECTION);
-
-const store = {
-  async sessionExists({ session }) {
-    const name = String(session || "").trim();
-    if (!name) return false;
-    const doc = await sessionCollection.findOne({ sessionName: name }, { projection: { _id: 1 } });
-    return Boolean(doc);
-  },
-  async save({ session, data }) {
-    const name = String(session || "").trim();
-    if (!name) return;
-    await sessionCollection.updateOne(
-      { sessionName: name },
-      { $set: { sessionName: name, data, updatedAt: new Date() } },
-      { upsert: true }
-    );
-  },
-  async extract({ session }) {
-    const name = String(session || "").trim();
-    if (!name) return null;
-    const doc = await sessionCollection.findOne({ sessionName: name });
-    return doc?.data || null;
-  },
-  async delete({ session }) {
-    const name = String(session || "").trim();
-    if (!name) return;
-    await sessionCollection.deleteOne({ sessionName: name });
-  },
-};
 
 // Download and find Chrome executable at runtime using @puppeteer/browsers
 async function ensureChrome() {
