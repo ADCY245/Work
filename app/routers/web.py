@@ -19,6 +19,12 @@ from app.db import get_database
 from app.services.auth_utils import get_user_from_request, hash_password
 from app.services.whatsapp import send_whatsapp
 
+AVATAR_MAP = {
+    "default": "/static/img/avatar-neutral.svg",
+    "male": "/static/img/avatar-male.svg",
+    "female": "/static/img/avatar-female.svg",
+}
+
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
