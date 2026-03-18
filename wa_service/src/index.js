@@ -186,11 +186,7 @@ async function ensureWhatsApp() {
     }
 
     waClient = new Client({
-      authStrategy: new RemoteAuth({
-        clientId: process.env.WA_CLIENT_ID || "physihome",
-        store,
-        backupSyncIntervalMs: 300000,
-      }),
+      authStrategy,
       puppeteer: {
         headless: true,
         executablePath: CHROME_EXECUTABLE,
