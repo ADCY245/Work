@@ -336,7 +336,7 @@ app.post("/send", requireAuth, async (req, res) => {
     _touchIdleShutdown();
     
     const toPhone = normalizeE164(req.body?.to);
-    const body = String(req.body?.body || "").trim();
+    const body = String(req.body?.body || req.body?.message || "").trim();
     if (!toPhone) return res.status(400).json({ ok: false, error: "invalid_phone" });
     if (!body) return res.status(400).json({ ok: false, error: "empty_body" });
     if (!isReady) return res.status(503).json({ ok: false, error: "not_ready" });
