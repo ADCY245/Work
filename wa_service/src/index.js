@@ -8,7 +8,7 @@ import { join } from "path";
 import { computeExecutablePath, Browser, BrowserPlatform, install } from '@puppeteer/browsers';
 import whatsappPkg from "whatsapp-web.js";
 
-const { Client, RemoteAuth, LocalAuth } = whatsappPkg;
+const { Client, RemoteAuth, LocalAuth, MessageMedia } = whatsappPkg;
 
 const PORT = Number(process.env.PORT || 3001);
 const MONGODB_URI = process.env.MONGODB_URI;
@@ -339,6 +339,7 @@ app.post("/send", requireAuth, async (req, res) => {
     
     const toPhone = normalizeE164(req.body?.to);
     const body = String(req.body?.body || req.body?.message || "").trim();
+    const attachment = req.body?.attachment; // { filename, content (base64), type }
     const stateSnapshot = {
       ready: isReady,
       hasQr: Boolean(latestQrDataUrl),
@@ -351,7 +352,7 @@ app.post("/send", requireAuth, async (req, res) => {
       console.log("/send invalid_phone", { ip: req.ip, ua: req.get("user-agent"), ...stateSnapshot });
       return res.status(400).json({ ok: false, error: "invalid_phone", state: stateSnapshot });
     }
-    if (!body) {
+    if (!body && !attachment) {
       console.log("/send empty_body", { ip: req.ip, ua: req.get("user-agent"), ...stateSnapshot });
       return res.status(400).json({ ok: false, error: "empty_body", state: stateSnapshot });
     }
@@ -361,7 +362,18 @@ app.post("/send", requireAuth, async (req, res) => {
     }
 
     const chatId = `${toPhone.slice(1)}@c.us`;
-    await waClient.sendMessage(chatId, body);
+
+    // Send media attachment if provided
+    if (attachment && attachment.content) {
+      const media = new MessageMedia(
+        attachment.type || 'application/pdf',
+        attachment.content,
+        attachment.filename || 'attachment.pdf'
+      );
+      await waClient.sendMessage(chatId, media, { caption: body || undefined });
+    } else {
+      await waClient.sendMessage(chatId, body);
+    }
 
     _touchIdleShutdown();
 
