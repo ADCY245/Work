@@ -50,14 +50,15 @@ async def _maybe_notify_whatsapp_new_message(
         if str(sender.get("role") or "").strip().lower() == "doctor":
             sender_name = f"Dr. {sender_name}".strip()
         site_url = str(getattr(settings, "site_url", "") or "").strip()
-        notify_body = f"{sender_name} has sent you a message on PhysiHome."
+        notify_body = f"You have received a message from {sender_name} on PhysiHome."
         if site_url:
             notify_body = notify_body + f" Open: {site_url}"
 
         convo_id = str(convo.get("_id") or "")
         now = datetime.utcnow()
-        window_seconds = int(getattr(settings, "wa_message_notify_debounce_seconds", 120) or 120)
+        window_seconds = int(getattr(settings, "wa_message_notify_debounce_seconds", 600) or 600)
         threshold = now - timedelta(seconds=window_seconds)
+        online_threshold = _presence_online_threshold()
 
         async def _notify_one(uid: str) -> None:
             try:
@@ -74,6 +75,12 @@ async def _maybe_notify_whatsapp_new_message(
                 return
 
             try:
+                presence = await db.user_presence.find_one(
+                    {"user_id": uid, "updated_at": {"$gte": online_threshold}},
+                    {"updated_at": 1},
+                )
+                if presence:
+                    return
                 existing = await db.wa_message_notify.find_one(
                     {
                         "conversation_id": convo_id,
@@ -182,6 +189,82 @@ def _iso(dt: datetime | None) -> str | None:
 
 def _read_key(user_id: str) -> str:
     return f"last_read_at.{user_id}"
+
+
+def _presence_online_threshold() -> datetime:
+    seconds = int(getattr(settings, "message_presence_window_seconds", 75) or 75)
+    return datetime.utcnow() - timedelta(seconds=seconds)
+
+
+async def _touch_presence(db, user_id: str, thread_id: str | None = None) -> datetime:
+    now = datetime.utcnow()
+    await db.user_presence.update_one(
+        {"user_id": user_id},
+        {"$set": {"updated_at": now, "active_thread_id": thread_id or ""}},
+        upsert=True,
+    )
+    return now
+
+
+async def _online_user_ids(db, user_ids: list[str]) -> set[str]:
+    ids = [uid for uid in user_ids if uid]
+    if not ids:
+        return set()
+    threshold = _presence_online_threshold()
+    cursor = db.user_presence.find(
+        {"user_id": {"$in": ids}, "updated_at": {"$gte": threshold}},
+        {"user_id": 1},
+    )
+    online = set()
+    async for item in cursor:
+        uid = str(item.get("user_id") or "")
+        if uid:
+            online.add(uid)
+    return online
+
+
+def _conversation_other_participant_ids(convo: dict, user_id: str) -> list[str]:
+    return [
+        str(pid)
+        for pid in (convo.get("participants") or [])
+        if str(pid or "") and str(pid) != str(user_id)
+    ]
+
+
+def _message_seen_by_others(convo: dict, message_created_at: datetime | None, sender_id: str) -> bool:
+    if not message_created_at:
+        return False
+    last_read_map = convo.get("last_read_at") or {}
+    for participant_id in (convo.get("participants") or []):
+        pid = str(participant_id or "")
+        if not pid or pid == str(sender_id):
+            continue
+        seen_at = last_read_map.get(pid)
+        if seen_at and seen_at >= message_created_at:
+            return True
+    return False
+
+
+def _other_last_read_at(convo: dict, user_id: str) -> datetime | None:
+    last_read_map = convo.get("last_read_at") or {}
+    seen_times = []
+    for participant_id in (convo.get("participants") or []):
+        pid = str(participant_id or "")
+        if not pid or pid == str(user_id):
+            continue
+        seen_at = last_read_map.get(pid)
+        if seen_at:
+            seen_times.append(seen_at)
+    return max(seen_times) if seen_times else None
+
+
+async def _conversation_presence_payload(db, convo: dict, user_id: str) -> dict:
+    other_ids = _conversation_other_participant_ids(convo, user_id)
+    online_ids = await _online_user_ids(db, other_ids)
+    return {
+        "online_ids": online_ids,
+        "other_online": bool(online_ids),
+    }
 
 
 async def _compute_unread_count(db, conversation: dict, user_id: str) -> int:
@@ -326,6 +409,43 @@ async def _admin_can_manage_doctor(admin: dict, doctor: dict | None) -> bool:
         return False
     assigned = doctor.get("assigned_admin_id")
     return bool(assigned and str(assigned) == str(admin.get("_id")))
+
+
+async def _build_thread_summary(db, convo: dict, user_id: str, admin_ids: set[str], online_ids: set[str]) -> dict:
+    admin_counterparty = _admin_broadcast_counterparty(convo, user_id, admin_ids)
+    is_admin_thread = admin_counterparty is not None
+    other_id = None
+    if admin_counterparty and admin_counterparty != "__ADMIN__":
+        other_id = admin_counterparty
+    elif not is_admin_thread:
+        other_id = next(
+            (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
+            None,
+        )
+
+    other_user = None
+    if other_id:
+        try:
+            other_user = await db.users.find_one({"_id": ObjectId(other_id)})
+        except Exception:
+            other_user = None
+
+    other_name = None
+    if admin_counterparty == "__ADMIN__":
+        other_name = "Admin"
+    elif other_user:
+        if other_user.get("role") == "doctor":
+            other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+        else:
+            other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
+
+    return {
+        "_id": str(convo.get("_id")),
+        "title": other_name or "Conversation",
+        "updated_at": convo.get("updated_at"),
+        "other_user_id": other_id or "",
+        "other_online": bool(other_id and other_id in online_ids),
+    }
 
 
 async def _notify_appointment_fixed(db, appt: dict) -> None:
@@ -583,6 +703,27 @@ async def doctors(
     pin_code: str | None = Query(None),
 ):
     db = get_database()
+    search_city_raw = (city or "").strip()
+    search_city = search_city_raw.lower()
+    search_pin_raw = "".join(ch for ch in (pin_code or "") if ch.isdigit())[:6]
+
+    def parse_pin(value: str | None) -> int | None:
+        if not value:
+            return None
+        digits = "".join(ch for ch in value if ch.isdigit())
+        return int(digits) if digits else None
+
+    def pin_prefix_rank(entry_pin: str, requested_pin: str) -> int:
+        if not entry_pin or not requested_pin:
+            return 5
+        if entry_pin == requested_pin:
+            return 0
+        for prefix_len, rank in ((5, 1), (4, 2), (3, 3)):
+            if len(entry_pin) >= prefix_len and len(requested_pin) >= prefix_len:
+                if entry_pin[:prefix_len] == requested_pin[:prefix_len]:
+                    return rank
+        return 4
+
     cursor = db.users.find(
         {"role": "doctor", "doctor_verification_status": "verified"},
         {
@@ -610,18 +751,12 @@ async def doctors(
             }
         )
 
-    def parse_pin(value: str | None) -> int | None:
-        if not value:
-            return None
-        digits = "".join(ch for ch in value if ch.isdigit())
-        return int(digits) if digits else None
-
-    user_pin = parse_pin(pin_code)
-    search_city = (city or "").strip().lower()
+    user_pin = parse_pin(search_pin_raw)
 
     for entry in doctors_list:
         entry_city = (entry.get("city") or "").strip().lower()
-        entry_pin = parse_pin(entry.get("preferred_pin"))
+        entry_pin_raw = "".join(ch for ch in str(entry.get("preferred_pin") or "") if ch.isdigit())[:6]
+        entry_pin = parse_pin(entry_pin_raw)
         entry["city_match"] = bool(search_city and entry_city == search_city)
         entry["pin_distance"] = (
             abs(entry_pin - user_pin)
@@ -629,26 +764,41 @@ async def doctors(
             else None
         )
         entry["pin_exact_match"] = bool(entry["pin_distance"] == 0)
+        entry["pin_prefix_rank"] = pin_prefix_rank(entry_pin_raw, search_pin_raw)
+        entry["pin_nearby_match"] = bool(search_pin_raw and entry["pin_prefix_rank"] in {1, 2, 3})
         entry["pin_value"] = entry_pin
 
     def sort_key(entry):
         city_match = 0 if not search_city else (0 if entry.get("city_match") else 1)
+        pin_rank = entry.get("pin_prefix_rank", 5) if search_pin_raw else 5
         pin_distance = (
             entry.get("pin_distance")
             if entry.get("pin_distance") is not None
             else 10**6
         )
-        return (city_match, pin_distance, entry["name"])
+        return (city_match, pin_rank, pin_distance, entry["name"])
 
     doctors_sorted = sorted(doctors_list, key=sort_key)
+    ranked_matches = [
+        entry
+        for entry in doctors_sorted
+        if (
+            (search_city and entry.get("city_match"))
+            or (search_pin_raw and entry.get("pin_prefix_rank", 5) < 5)
+        )
+    ]
+    visible_doctors = ranked_matches if ranked_matches else doctors_sorted
 
     return templates.TemplateResponse(
         "doctors.html",
         await build_context(
             request,
-            doctors=doctors_sorted,
-            search_city=city or "",
-            search_pin=pin_code or "",
+            doctors=visible_doctors,
+            search_city=search_city_raw,
+            search_pin=search_pin_raw,
+            result_count=len(visible_doctors),
+            showing_filtered=bool(search_city or search_pin_raw),
+            found_ranked_matches=bool(ranked_matches),
         ),
     )
 
@@ -744,54 +894,30 @@ async def messages(request: Request):
 
     db = get_database()
     user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id)
     threads = []
 
     restricted_mode = _is_messaging_restricted(user)
     admin_ids = await _get_admin_ids(db, ensure_mailboxes=False)
     role = str(user.get("role") or "").strip().lower()
+    convo_list = await db.conversations.find({"participants": user_id}).sort("updated_at", -1).to_list(length=200)
+    other_ids = []
+    for convo in convo_list:
+        other_ids.extend(_conversation_other_participant_ids(convo, user_id))
+    online_ids = await _online_user_ids(db, other_ids)
 
-    cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
-    async for convo in cursor:
+    for convo in convo_list:
         locked = False
         if restricted_mode and role == "doctor":
             locked = not (await _restricted_can_access_conversation(db, user, convo))
         elif restricted_mode and not (await _restricted_can_access_conversation(db, user, convo)):
             continue
 
-        admin_counterparty = _admin_broadcast_counterparty(convo, user_id, admin_ids)
-        is_admin_thread = admin_counterparty is not None
-        other_id = None
-        if admin_counterparty and admin_counterparty != "__ADMIN__":
-            other_id = admin_counterparty
-        elif not is_admin_thread:
-            other_id = next(
-                (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
-                None,
-            )
-        other_user = None
-        if other_id:
-            try:
-                other_user = await db.users.find_one({"_id": ObjectId(other_id)})
-            except Exception:
-                other_user = None
-        other_name = None
-        if admin_counterparty == "__ADMIN__":
-            other_name = "Admin"
-        elif other_user:
-            if other_user.get("role") == "doctor":
-                other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
-            else:
-                other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
         unread_count = await _compute_unread_count(db, convo, user_id)
-        threads.append(
-            {
-                "_id": str(convo.get("_id")),
-                "title": other_name or "Conversation",
-                "updated_at": convo.get("updated_at"),
-                "unread_count": unread_count,
-                "locked": locked,
-            }
-        )
+        summary = await _build_thread_summary(db, convo, user_id, admin_ids, online_ids)
+        summary["unread_count"] = unread_count
+        summary["locked"] = locked
+        threads.append(summary)
 
     return templates.TemplateResponse(
         "messages.html",
@@ -810,6 +936,7 @@ async def message_thread(request: Request, thread_id: str):
 
     db = get_database()
     user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id, thread_id)
     try:
         convo_oid = ObjectId(thread_id)
     except Exception:
@@ -848,48 +975,24 @@ async def message_thread(request: Request, thread_id: str):
     restricted_mode = _is_messaging_restricted(user)
     admin_ids = await _get_admin_ids(db, ensure_mailboxes=False)
     role = str(user.get("role") or "").strip().lower()
+    convo_list = await db.conversations.find({"participants": user_id}).sort("updated_at", -1).to_list(length=200)
+    other_ids = []
+    for thread in convo_list:
+        other_ids.extend(_conversation_other_participant_ids(thread, user_id))
+    online_ids = await _online_user_ids(db, other_ids)
 
-    cursor_threads = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
-    async for t in cursor_threads:
+    for t in convo_list:
         locked = False
         if restricted_mode and role == "doctor":
             locked = not (await _restricted_can_access_conversation(db, user, t))
         elif restricted_mode and not (await _restricted_can_access_conversation(db, user, t)):
             continue
 
-        admin_counterparty = _admin_broadcast_counterparty(t, user_id, admin_ids)
-        is_admin_thread = admin_counterparty is not None
-        other_id = None
-        if admin_counterparty and admin_counterparty != "__ADMIN__":
-            other_id = admin_counterparty
-        elif not is_admin_thread:
-            other_id = next(
-                (str(pid) for pid in (t.get("participants", []) or []) if str(pid) != str(user_id)),
-                None,
-            )
-        other_user = None
-        if other_id:
-            try:
-                other_user = await db.users.find_one({"_id": ObjectId(other_id)})
-            except Exception:
-                other_user = None
-        other_name = None
-        if admin_counterparty == "__ADMIN__":
-            other_name = "Admin"
-        elif other_user:
-            if other_user.get("role") == "doctor":
-                other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
-            else:
-                other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
         unread_count = await _compute_unread_count(db, t, user_id)
-        threads.append(
-            {
-                "_id": str(t.get("_id")),
-                "title": other_name or "Conversation",
-                "unread_count": unread_count,
-                "locked": locked,
-            }
-        )
+        summary = await _build_thread_summary(db, t, user_id, admin_ids, online_ids)
+        summary["unread_count"] = unread_count
+        summary["locked"] = locked
+        threads.append(summary)
 
     messages = []
     cursor_msgs = db.messages.find({"conversation_id": str(convo_oid)}).sort("created_at", 1)
@@ -900,10 +1003,17 @@ async def message_thread(request: Request, thread_id: str):
                 "text": _decrypt_text(msg.get("ciphertext") or ""),
                 "created_at": _iso(msg.get("created_at")),
                 "is_me": msg.get("sender_id") == user_id,
+                "seen_by_other": _message_seen_by_others(convo, msg.get("created_at"), msg.get("sender_id")),
             }
         )
 
-    conversation = {"_id": str(convo_oid)}
+    conversation_summary = await _build_thread_summary(db, convo, user_id, admin_ids, online_ids)
+    conversation = {
+        "_id": str(convo_oid),
+        "title": conversation_summary.get("title") or "Conversation",
+        "other_online": conversation_summary.get("other_online", False),
+        "other_last_read_at": _iso(_other_last_read_at(convo, user_id)),
+    }
     return templates.TemplateResponse(
         "messages.html",
         await build_context(request, threads=threads, conversation=conversation, messages=messages),
@@ -917,6 +1027,7 @@ async def api_unread(request: Request):
         return JSONResponse({"unread": 0})
     db = get_database()
     user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id)
     total = 0
     restricted_mode = _is_messaging_restricted(user)
     admin_ids = await _get_admin_ids(db, ensure_mailboxes=False) if restricted_mode else set()
@@ -937,53 +1048,30 @@ async def api_threads(request: Request):
 
     db = get_database()
     user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id)
     threads = []
     restricted_mode = _is_messaging_restricted(user)
     admin_ids = await _get_admin_ids(db, ensure_mailboxes=False)
     role = str(user.get("role") or "").strip().lower()
+    convo_list = await db.conversations.find({"participants": user_id}).sort("updated_at", -1).to_list(length=200)
+    other_ids = []
+    for convo in convo_list:
+        other_ids.extend(_conversation_other_participant_ids(convo, user_id))
+    online_ids = await _online_user_ids(db, other_ids)
 
-    cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
-    async for convo in cursor:
+    for convo in convo_list:
         locked = False
         if restricted_mode and role == "doctor":
             locked = not (await _restricted_can_access_conversation(db, user, convo))
         elif restricted_mode and not (await _restricted_can_access_conversation(db, user, convo)):
             continue
 
-        admin_counterparty = _admin_broadcast_counterparty(convo, user_id, admin_ids)
-        is_admin_thread = admin_counterparty is not None
-        other_id = None
-        if admin_counterparty and admin_counterparty != "__ADMIN__":
-            other_id = admin_counterparty
-        elif not is_admin_thread:
-            other_id = next(
-                (str(pid) for pid in (convo.get("participants", []) or []) if str(pid) != str(user_id)),
-                None,
-            )
-        other_user = None
-        if other_id:
-            try:
-                other_user = await db.users.find_one({"_id": ObjectId(other_id)})
-            except Exception:
-                other_user = None
-        other_name = None
-        if admin_counterparty == "__ADMIN__":
-            other_name = "Admin"
-        elif other_user:
-            if other_user.get("role") == "doctor":
-                other_name = f"Dr. {other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
-            else:
-                other_name = f"{other_user.get('first_name', '')} {other_user.get('last_name', '')}".strip()
         unread_count = await _compute_unread_count(db, convo, user_id)
-        threads.append(
-            {
-                "_id": str(convo.get("_id")),
-                "title": other_name or "Conversation",
-                "unread_count": unread_count,
-                "updated_at": _iso(convo.get("updated_at")),
-                "locked": locked,
-            }
-        )
+        summary = await _build_thread_summary(db, convo, user_id, admin_ids, online_ids)
+        summary["unread_count"] = unread_count
+        summary["updated_at"] = _iso(convo.get("updated_at"))
+        summary["locked"] = locked
+        threads.append(summary)
     return JSONResponse({"threads": threads})
 
 
@@ -998,6 +1086,7 @@ async def api_send_message(request: Request, thread_id: str, text: str = Form(""
 
     db = get_database()
     user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id, thread_id)
     try:
         convo_oid = ObjectId(thread_id)
     except Exception:
@@ -1034,6 +1123,7 @@ async def api_send_message(request: Request, thread_id: str, text: str = Form(""
                 "text": message,
                 "created_at": _iso(now),
                 "is_me": True,
+                "seen_by_other": False,
             }
         }
     )
@@ -1047,6 +1137,7 @@ async def api_messages_since(request: Request, thread_id: str, after: str | None
 
     db = get_database()
     user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id, thread_id)
     try:
         convo_oid = ObjectId(thread_id)
     except Exception:
@@ -1079,10 +1170,18 @@ async def api_messages_since(request: Request, thread_id: str, after: str | None
                 "text": _decrypt_text(msg.get("ciphertext") or ""),
                 "created_at": _iso(msg.get("created_at")),
                 "is_me": msg.get("sender_id") == user_id,
+                "seen_by_other": _message_seen_by_others(convo, msg.get("created_at"), msg.get("sender_id")),
             }
         )
 
-    return JSONResponse({"messages": messages})
+    presence = await _conversation_presence_payload(db, convo, user_id)
+    return JSONResponse(
+        {
+            "messages": messages,
+            "other_online": presence["other_online"],
+            "other_last_read_at": _iso(_other_last_read_at(convo, user_id)),
+        }
+    )
 
 
 @router.post("/api/messages/{thread_id}/read")
@@ -1093,6 +1192,7 @@ async def api_mark_read(request: Request, thread_id: str):
 
     db = get_database()
     user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id, thread_id)
     try:
         convo_oid = ObjectId(thread_id)
     except Exception:
@@ -1114,6 +1214,38 @@ async def api_mark_read(request: Request, thread_id: str):
         {"$set": {_read_key(user_id): datetime.utcnow()}},
     )
     return JSONResponse({"ok": True})
+
+
+@router.post("/api/messages/presence")
+async def api_message_presence(request: Request, thread_id: str | None = Form(None)):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"ok": False}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id, thread_id)
+
+    if not thread_id:
+        return JSONResponse({"ok": True})
+
+    try:
+        convo_oid = ObjectId(thread_id)
+    except Exception:
+        return JSONResponse({"ok": True})
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return JSONResponse({"ok": True})
+
+    presence = await _conversation_presence_payload(db, convo, user_id)
+    return JSONResponse(
+        {
+            "ok": True,
+            "other_online": presence["other_online"],
+            "other_last_read_at": _iso(_other_last_read_at(convo, user_id)),
+        }
+    )
 
 
 @router.get("/api/messages/{thread_id}/calendar")

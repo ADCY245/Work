@@ -1,4 +1,24 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const initPresenceHeartbeat = () => {
+    const authRoot = document.querySelector("[data-auth='true']");
+    if (!authRoot) return;
+
+    const ping = async () => {
+      try {
+        await fetch("/api/messages/presence", {
+          method: "POST",
+          headers: { Accept: "application/json" },
+          body: new FormData(),
+        });
+      } catch {
+        // ignore
+      }
+    };
+
+    ping();
+    setInterval(ping, 20000);
+  };
+
   const initDobFields = () => {
     const wrappers = document.querySelectorAll("[data-dob-field]");
 
@@ -456,7 +476,7 @@ document.addEventListener("DOMContentLoaded", () => {
     input.type = type;
     const button = input.nextElementSibling;
     if (button && button.tagName === "BUTTON") {
-      button.textContent = type === "password" ? "👁" : "🙈";
+      button.textContent = type === "password" ? "Show" : "Hide";
     }
   };
 
@@ -494,8 +514,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const appointmentSubmit = document.querySelector("[data-appointment-submit]");
     const slotGrid = document.querySelector("[data-slot-grid]");
     const openAppointmentBtn = document.querySelector("[data-open-appointment]");
+    const otherPresenceDot = document.querySelector("[data-other-presence-dot]");
+    const otherPresenceLabel = document.querySelector("[data-other-presence-label]");
     let isSending = false;
     let calendarState = null;
+    let otherLastReadAt = conversationPanel?.dataset.otherLastReadAt || null;
 
     const setBadge = (count) => {
       if (!navBadge) return;
@@ -533,9 +556,15 @@ document.addEventListener("DOMContentLoaded", () => {
           a.dataset.threadUnread = "1";
         }
 
+        const titleRow = document.createElement("span");
+        titleRow.className = "thread-title-row";
         const title = document.createElement("strong");
         title.textContent = t.title;
-        a.appendChild(title);
+        const presence = document.createElement("span");
+        presence.className = `presence-indicator${t.other_online ? " online" : ""}`;
+        presence.setAttribute("aria-label", t.other_online ? "Online" : "Offline");
+        titleRow.append(title, presence);
+        a.appendChild(titleRow);
 
         const sub = document.createElement("span");
         sub.className = "muted small";
@@ -578,11 +607,35 @@ document.addEventListener("DOMContentLoaded", () => {
     let lastSeen = null;
     const seen = new Set();
 
+    const setOtherPresence = (isOnline) => {
+      if (otherPresenceDot) {
+        otherPresenceDot.classList.toggle("online", Boolean(isOnline));
+      }
+      if (otherPresenceLabel) {
+        otherPresenceLabel.textContent = isOnline ? "Online" : "Offline";
+      }
+    };
+
+    const updateSeenReceipts = (cutoff) => {
+      if (!messagesList) return;
+      otherLastReadAt = cutoff || otherLastReadAt;
+      const cutoffTime = otherLastReadAt ? Date.parse(otherLastReadAt) : NaN;
+      messagesList.querySelectorAll(".message-row.me[data-created-at]").forEach((row) => {
+        const meta = row.querySelector(".message-meta");
+        if (!meta) return;
+        const createdAt = row.dataset.createdAt ? Date.parse(row.dataset.createdAt) : NaN;
+        meta.textContent = Number.isFinite(cutoffTime) && Number.isFinite(createdAt) && cutoffTime >= createdAt
+          ? "Seen"
+          : "Sent";
+      });
+    };
+
     if (messagesList) {
       messagesList.querySelectorAll("[data-created-at]").forEach((node) => {
         const key = node.dataset.createdAt;
         if (key) seen.add(key);
       });
+      updateSeenReceipts(otherLastReadAt);
     }
 
     const appendMessages = (msgs) => {
@@ -600,15 +653,23 @@ document.addEventListener("DOMContentLoaded", () => {
         const bubble = document.createElement("div");
         bubble.className = "message-bubble";
 
-        const text = document.createElement("div");
+        const text = document.createElement("p");
+        text.className = "message-text";
         text.textContent = m.text;
         bubble.appendChild(text);
+        if (m.is_me) {
+          const meta = document.createElement("span");
+          meta.className = "message-meta";
+          meta.textContent = m.seen_by_other ? "Seen" : "Sent";
+          bubble.appendChild(meta);
+        }
         row.appendChild(bubble);
         messagesList.appendChild(row);
 
         if (seenKey) seen.add(seenKey);
         if (m.created_at) lastSeen = m.created_at;
       });
+      updateSeenReceipts(otherLastReadAt);
       messagesList.scrollTop = messagesList.scrollHeight;
     };
 
@@ -771,6 +832,8 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!res.ok) return;
         const data = await res.json();
         const msgs = data.messages || [];
+        setOtherPresence(Boolean(data.other_online));
+        updateSeenReceipts(data.other_last_read_at || null);
         if (msgs.length) {
           appendMessages(msgs);
           await markRead();
@@ -780,7 +843,28 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     };
 
+    const pingPresence = async () => {
+      const payload = new FormData();
+      if (activeThreadId) payload.append("thread_id", activeThreadId);
+      try {
+        const res = await fetch("/api/messages/presence", {
+          method: "POST",
+          body: payload,
+          headers: { Accept: "application/json" },
+        });
+        if (!res.ok) return;
+        const data = await res.json().catch(() => ({}));
+        if (activeThreadId) {
+          setOtherPresence(Boolean(data.other_online));
+          updateSeenReceipts(data.other_last_read_at || null);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
     fetchUnread();
+    pingPresence();
     if (threadsList) {
       threadsList.querySelectorAll("[data-thread-locked='1']").forEach((link) => {
         link.addEventListener("click", (event) => {
@@ -796,6 +880,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (navBadge) {
       setInterval(fetchUnread, 10000);
     }
+    setInterval(pingPresence, 20000);
     if (activeThreadId && messagesList) {
       const existing = Array.from(
         messagesList.querySelectorAll("[data-created-at]")
@@ -997,6 +1082,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const reasonForm = reasonDialog?.querySelector("[data-admin-reason-form]");
     const roleDialog = document.getElementById("adminRoleDialog");
     const roleForm = roleDialog?.querySelector("[data-admin-role-form]");
+    const assignInDetailsBtn = detailsDialog?.querySelector("[data-assign-doctor-modal]");
 
     const fillDetails = (menu) => {
       if (!detailsDialog) return;
@@ -1007,7 +1093,15 @@ document.addEventListener("DOMContentLoaded", () => {
       detailsDialog.querySelector("[data-admin-details-license]").textContent = menu.dataset.doctorLicense || "";
       detailsDialog.querySelector("[data-admin-details-city]").textContent = menu.dataset.doctorCity || "";
       detailsDialog.querySelector("[data-admin-details-pin]").textContent = menu.dataset.doctorPin || "";
+      detailsDialog.querySelector("[data-admin-details-assigned-admin]").textContent = menu.dataset.doctorAssignedAdminName || "Unassigned";
       detailsDialog.querySelector("[data-admin-details-description]").textContent = (menu.dataset.doctorDescription || "").trim() || "No description";
+
+      if (assignInDetailsBtn) {
+        const assignedAdminId = menu.dataset.doctorAssignedAdminId || "";
+        assignInDetailsBtn.dataset.assignDoctor = menu.dataset.doctorId || "";
+        assignInDetailsBtn.hidden = Boolean(assignedAdminId);
+        assignInDetailsBtn.disabled = false;
+      }
 
       const selfBtn = detailsDialog.querySelector('[data-admin-doc="self"]');
       const degreeBtn = detailsDialog.querySelector('[data-admin-doc="degree"]');
@@ -1169,7 +1263,7 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   const initAdminDoctorAssignment = () => {
-    document.querySelectorAll("[data-assign-doctor]").forEach((button) => {
+    document.querySelectorAll("[data-assign-doctor], [data-assign-doctor-modal]").forEach((button) => {
       button.addEventListener("click", async () => {
         const doctorId = button.dataset.assignDoctor;
         if (!doctorId) return;
@@ -1389,6 +1483,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initAdminActions();
   initLicenseRequiredPrompt();
   initDescriptionRequiredPrompt();
+  initPresenceHeartbeat();
   initDescriptionEditor();
   initDoctorCards();
   initAdminKebabMenus();
@@ -1396,3 +1491,4 @@ document.addEventListener("DOMContentLoaded", () => {
   initAdminCalendar();
   initMessaging();
 });
+

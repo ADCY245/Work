@@ -57,6 +57,15 @@ class Settings(BaseSettings):
         alias="ADMIN_EMAILS",
     )
 
+    wa_message_notify_debounce_seconds: int = Field(
+        default=600,
+        alias="WA_MESSAGE_NOTIFY_DEBOUNCE_SECONDS",
+    )
+    message_presence_window_seconds: int = Field(
+        default=75,
+        alias="MESSAGE_PRESENCE_WINDOW_SECONDS",
+    )
+
     @model_validator(mode="after")
     def _ensure_notification_email(self):
         if not self.notifications_from_email:

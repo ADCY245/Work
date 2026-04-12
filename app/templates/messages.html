@@ -18,7 +18,10 @@
         <div class="threads-list" data-threads-list>
           {% for thread in threads %}
             <a class="thread-link" href="/messages/{{ thread._id }}" data-thread-item data-thread-id="{{ thread._id }}" data-thread-unread="{{ 1 if thread.unread_count and thread.unread_count > 0 else 0 }}" data-thread-locked="{{ 1 if thread.locked else 0 }}">
-              <strong>{{ thread.title }}</strong>
+              <span class="thread-title-row">
+                <strong>{{ thread.title }}</strong>
+                <span class="presence-indicator {{ 'online' if thread.other_online else '' }}" aria-label="{{ 'Online' if thread.other_online else 'Offline' }}"></span>
+              </span>
               <span class="muted small">Open conversation</span>
               {% if thread.unread_count and thread.unread_count > 0 %}
               <span class="badge" data-thread-unread-badge>{{ thread.unread_count }}</span>
@@ -32,10 +35,16 @@
       {% endif %}
     </div>
 
-    <div class="conversation-panel" data-conversation-panel data-active-thread-id="{{ conversation._id if conversation else '' }}">
+    <div class="conversation-panel" data-conversation-panel data-active-thread-id="{{ conversation._id if conversation else '' }}" data-other-last-read-at="{{ conversation.other_last_read_at if conversation else '' }}">
       {% if conversation %}
         <div class="conversation-toolbar">
-          <h3>Conversation</h3>
+          <div class="conversation-heading">
+            <h3>{{ conversation.title or 'Conversation' }}</h3>
+            <span class="conversation-status">
+              <span class="presence-indicator {{ 'online' if conversation.other_online else '' }}" data-other-presence-dot></span>
+              <span class="small muted" data-other-presence-label>{{ 'Online' if conversation.other_online else 'Offline' }}</span>
+            </span>
+          </div>
           <div class="conversation-actions">
             {% if current_user and current_user.role == 'doctor' %}
             <button class="icon-btn" type="button" title="Share appointment slot" aria-label="Share appointment slot" data-open-appointment>Cal</button>
@@ -52,7 +61,10 @@
             <div class="message-row" data-created-at="{{ msg.created_at }}">
             {% endif %}
               <div class="message-bubble">
-                <div>{{ msg.text }}</div>
+                <p class="message-text">{{ msg.text }}</p>
+                {% if msg.is_me %}
+                <span class="message-meta">{{ 'Seen' if msg.seen_by_other else 'Sent' }}</span>
+                {% endif %}
               </div>
             </div>
           {% endfor %}

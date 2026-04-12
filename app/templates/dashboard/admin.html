@@ -76,6 +76,8 @@
               data-doctor-city="{{ d.city or '' }}"
               data-doctor-pin="{{ d.preferred_pin or '' }}"
               data-doctor-description="{{ d.description or '' }}"
+              data-doctor-assigned-admin-id="{{ d.assigned_admin_id or '' }}"
+              data-doctor-assigned-admin-name="{{ d.assigned_admin_name or '' }}"
               data-self-photo="{{ d.self_photo_url or '' }}"
               data-degree-photo="{{ d.degree_photo_url or '' }}"
               data-visiting-card="{{ d.visiting_card_url or '' }}"
@@ -88,9 +90,6 @@
         </header>
         <p>Specialization: {{ d.specialization or 'General' }}</p>
         <p>Admin: {{ d.assigned_admin_name or 'Unassigned' }}</p>
-        {% if not d.assigned_admin_id %}
-        <button class="btn secondary" type="button" data-assign-doctor="{{ d._id }}">Assign to me</button>
-        {% endif %}
       </article>
       {% endfor %}
       {% if doctors|length == 0 %}
@@ -185,12 +184,16 @@
       <p><strong>License:</strong> <span data-admin-details-license></span></p>
       <p><strong>City:</strong> <span data-admin-details-city></span></p>
       <p><strong>Preferred PIN:</strong> <span data-admin-details-pin></span></p>
+      <p><strong>Assigned admin:</strong> <span data-admin-details-assigned-admin></span></p>
       <p><strong>Description:</strong></p>
       <p class="muted" data-admin-details-description></p>
       <div class="documents" style="margin:0;">
         <button class="doc-thumb" type="button" data-admin-doc="self" data-zoom-label="Self Photo"><img alt="Self photo" /></button>
         <button class="doc-thumb" type="button" data-admin-doc="degree" data-zoom-label="Degree"><img alt="Degree" /></button>
         <button class="doc-thumb" type="button" data-admin-doc="visiting" data-zoom-label="Visiting card"><img alt="Visiting card" /></button>
+      </div>
+      <div class="modal-actions">
+        <button class="btn secondary" type="button" data-assign-doctor-modal hidden>Assign to me</button>
       </div>
     </div>
   </div>
