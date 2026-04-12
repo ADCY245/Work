@@ -33,6 +33,9 @@
               data-user-email="{{ u.email }}"
               data-user-role="{{ u.role }}"
             >
+              {% if is_super_admin and u.role == 'admin' %}
+              <button class="kebab-item" type="button" data-admin-user-view>View details</button>
+              {% endif %}
               <button class="kebab-item" type="button" data-admin-role>Change role</button>
               <button class="kebab-item" type="button" data-admin-delete>Remove user</button>
             </div>
@@ -78,6 +81,7 @@
               data-doctor-description="{{ d.description or '' }}"
               data-doctor-assigned-admin-id="{{ d.assigned_admin_id or '' }}"
               data-doctor-assigned-admin-name="{{ d.assigned_admin_name or '' }}"
+              data-super-admin="{{ 'true' if is_super_admin else 'false' }}"
               data-self-photo="{{ d.self_photo_url or '' }}"
               data-degree-photo="{{ d.degree_photo_url or '' }}"
               data-visiting-card="{{ d.visiting_card_url or '' }}"
@@ -194,10 +198,40 @@
       </div>
       <div class="modal-actions">
         <button class="btn secondary" type="button" data-assign-doctor-modal hidden>Assign to me</button>
+        {% if is_super_admin %}
+        <label class="stack" style="min-width: 220px;">
+          <span>Assign doctor to</span>
+          <select data-assign-doctor-select>
+            <option value="">Select admin</option>
+            {% for admin in admins %}
+            <option value="{{ admin._id }}">{{ admin.name }}{% if admin.email %} ({{ admin.email }}){% endif %}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button class="btn primary" type="button" data-assign-doctor-to-admin>Assign doctor to</button>
+        {% endif %}
       </div>
     </div>
   </div>
 </dialog>
+
+{% if is_super_admin %}
+<dialog id="adminUserDetailsDialog" class="modal">
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2 data-admin-user-details-title>Admin details</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <div class="stack" style="text-align:left;">
+      <p><strong>Email:</strong> <span data-admin-user-details-email></span></p>
+      <p><strong>Assigned doctors:</strong></p>
+      <div class="stack" data-admin-user-doctors-list>
+        <p class="muted">Loading doctors...</p>
+      </div>
+    </div>
+  </div>
+</dialog>
+{% endif %}
 
 <dialog id="adminReasonDialog" class="modal">
   <div class="modal-body">

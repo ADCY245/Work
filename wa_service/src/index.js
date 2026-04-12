@@ -146,6 +146,7 @@ let latestQrDataUrl = null;
 let isReady = false;
 let lastError = null;
 let isInitializing = false;
+let initPromise = null;
 let idleTimer = null;
 
 function _clearIdleTimer() {
@@ -184,9 +185,13 @@ function _touchIdleShutdown() {
 // Lazy initialization - only start WhatsApp when QR is requested
 async function ensureWhatsApp() {
   if (waClient) return waClient;
-  if (isInitializing) throw new Error("Initializing, try again later");
-  
+
+  if (initPromise) {
+    return initPromise;
+  }
+
   isInitializing = true;
+  initPromise = (async () => {
   try {
     CHROME_EXECUTABLE = await ensureChrome();
     if (!CHROME_EXECUTABLE) {
@@ -276,7 +281,11 @@ async function ensureWhatsApp() {
     return waClient;
   } finally {
     isInitializing = false;
+    initPromise = null;
   }
+  })();
+
+  return initPromise;
 }
 
 // Remove immediate init
@@ -286,7 +295,13 @@ const app = express();
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (req, res) => {
-  res.json({ ok: true, ready: isReady, hasQr: Boolean(latestQrDataUrl), lastError });
+  res.json({
+    ok: true,
+    ready: isReady,
+    hasQr: Boolean(latestQrDataUrl),
+    initializing: Boolean(isInitializing || initPromise),
+    lastError,
+  });
 });
 
 app.get("/qr", requireAuth, async (req, res) => {
@@ -294,11 +309,13 @@ app.get("/qr", requireAuth, async (req, res) => {
     console.log("QR endpoint: client=", !!waClient, "qr=", !!latestQrDataUrl, "ready=", isReady, "init=", isInitializing);
     // Trigger initialization if not started
     if (!waClient) {
-      // Start init in background, don't wait
-      ensureWhatsApp().catch(e => {
-        console.error("Failed to initialize WhatsApp:", e);
-        lastError = String(e);
-      });
+      if (!initPromise) {
+        // Start init in background, don't wait
+        ensureWhatsApp().catch((e) => {
+          console.error("Failed to initialize WhatsApp:", e);
+          lastError = String(e);
+        });
+      }
       // Return waiting response
       return res.status(202).json({ ok: false, error: "initializing", message: "WhatsApp client starting, try again in 30-60 seconds" });
     }
