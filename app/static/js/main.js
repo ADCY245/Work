@@ -620,14 +620,22 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!messagesList) return;
       otherLastReadAt = cutoff || otherLastReadAt;
       const cutoffTime = otherLastReadAt ? Date.parse(otherLastReadAt) : NaN;
-      messagesList.querySelectorAll(".message-row.me[data-created-at]").forEach((row) => {
-        const meta = row.querySelector(".message-meta");
-        if (!meta) return;
-        const createdAt = row.dataset.createdAt ? Date.parse(row.dataset.createdAt) : NaN;
-        meta.textContent = Number.isFinite(cutoffTime) && Number.isFinite(createdAt) && cutoffTime >= createdAt
-          ? "Seen"
-          : "Sent";
-      });
+
+      const myRows = Array.from(messagesList.querySelectorAll(".message-row.me[data-created-at]"));
+      myRows.forEach((row) => row.querySelectorAll(".message-status").forEach((n) => n.remove()));
+
+      const lastMyRow = myRows.length ? myRows[myRows.length - 1] : null;
+      if (!lastMyRow) return;
+      const createdAt = lastMyRow.dataset.createdAt ? Date.parse(lastMyRow.dataset.createdAt) : NaN;
+      const statusText = Number.isFinite(cutoffTime) && Number.isFinite(createdAt) && cutoffTime >= createdAt
+        ? "Seen"
+        : "Sent";
+
+      const status = document.createElement("div");
+      status.className = "message-status";
+      status.dataset.lastMeStatus = "true";
+      status.textContent = statusText;
+      lastMyRow.appendChild(status);
     };
 
     if (messagesList) {
@@ -657,12 +665,6 @@ document.addEventListener("DOMContentLoaded", () => {
         text.className = "message-text";
         text.textContent = m.text;
         bubble.appendChild(text);
-        if (m.is_me) {
-          const meta = document.createElement("span");
-          meta.className = "message-meta";
-          meta.textContent = m.seen_by_other ? "Seen" : "Sent";
-          bubble.appendChild(meta);
-        }
         row.appendChild(bubble);
         messagesList.appendChild(row);
 

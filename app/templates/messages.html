@@ -62,10 +62,10 @@
             {% endif %}
               <div class="message-bubble">
                 <p class="message-text">{{ msg.text }}</p>
-                {% if msg.is_me %}
-                <span class="message-meta">{{ 'Seen' if msg.seen_by_other else 'Sent' }}</span>
-                {% endif %}
               </div>
+              {% if loop.last and msg.is_me %}
+              <div class="message-status" data-last-me-status>{{ 'Seen' if msg.seen_by_other else 'Sent' }}</div>
+              {% endif %}
             </div>
           {% endfor %}
           {% if not messages or messages|length == 0 %}
