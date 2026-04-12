@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Find Home-Visit Doctors | PhysiHome{% endblock %}
+{% block content %}
+<section class="page-hero">
+  <p class="eyebrow">Trusted physiotherapists</p>
+  <h1>Search home-visit doctors by city or PIN code.</h1>
+  <p>Use a PIN to find exact or nearby matches faster. We prioritize city matches, then exact PINs, then nearby PIN clusters.</p>
+</section>
+
+<section class="search-panel card">
+  <form class="search-form" action="/doctors" method="get">
+    <label>
+      City
+      <input type="text" name="city" placeholder="e.g. Mumbai" value="{{ search_city }}" />
+    </label>
+    <label>
+      PIN code
+      <input type="text" name="pin_code" placeholder="e.g. 400060" inputmode="numeric" pattern="\d{3,6}" value="{{ search_pin }}" />
+    </label>
+    <button type="submit" class="btn primary">Search doctors</button>
+    <a class="btn secondary" href="/doctors">Clear</a>
+  </form>
+  <p class="muted small" style="margin-top: 0.75rem;">Search by city, exact PIN, or nearby PIN prefix. Entering only a PIN works too.</p>
+  {% if search_city or search_pin %}
+  <p class="muted small" style="margin-top: 0.75rem;">
+    Showing <strong>{{ result_count }}</strong> doctor{% if result_count != 1 %}s{% endif %} for
+    {% if search_city %}<strong>{{ search_city|title }}</strong>{% endif %}
+    {% if search_city and search_pin %} · {% endif %}
+    {% if search_pin %}PIN <strong>{{ search_pin }}</strong>{% endif %}.
+    {% if found_ranked_matches %}
+    Best matches are shown first.
+    {% else %}
+    No direct city or PIN matches were found, so showing the full directory.
+    {% endif %}
+  </p>
+  {% endif %}
+</section>
+
+<section class="card-list doctor-results">
+  {% if doctors|length == 0 %}
+  <article class="card empty-state">
+    <h3>No doctors found</h3>
+    <p>Try widening your PIN radius or clearing the city filter.</p>
+    <a class="btn secondary" href="/doctors">Reset search</a>
+  </article>
+  {% else %}
+  {% for doctor in doctors %}
+  <article class="card doctor-card" data-doctor-card data-doctor-id="{{ doctor._id }}" data-doctor-name="{{ doctor.name }}" data-doctor-specialization="{{ doctor.specialization }}" data-doctor-description="{{ doctor.description or '' }}">
+    <header>
+      <img src="{{ doctor.avatar_url }}" alt="{{ doctor.name }}" />
+      <div>
+        <h3>{{ doctor.name }} - {{ doctor.specialization }}</h3>
+        <div class="doctor-rating" aria-label="Doctor rating">
+          <span class="stars" data-stars>★★★★★</span>
+          <span class="small" data-review-count>(0)</span>
+        </div>
+        <div class="match-flags">
+          {% if doctor.city_match %}
+          <span class="match-badge">City match</span>
+          {% endif %}
+          {% if doctor.pin_exact_match %}
+          <span class="match-badge success">Exact PIN</span>
+          {% elif doctor.pin_nearby_match %}
+          <span class="match-badge">Nearby PIN</span>
+          {% elif doctor.pin_distance is not none %}
+          <span class="match-badge muted">PIN distance {{ doctor.pin_distance }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+    <div class="doctor-meta">
+      <p><strong>City:</strong> {{ doctor.city or 'Not provided' }}</p>
+      <p><strong>Preferred PIN:</strong> {{ doctor.preferred_pin or 'N/A' }}</p>
+    </div>
+    <div class="actions">
+      <a class="btn ghost" href="/messages/start/{{ doctor._id }}">Send message</a>
+      <button class="btn primary" type="button" data-open-review>Review</button>
+    </div>
+  </article>
+  {% endfor %}
+  {% endif %}
+</section>
+
+<dialog id="doctorDescriptionDialog" class="modal">
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2 data-doctor-description-title>Doctor details</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <p data-doctor-description-body class="muted"></p>
+  </div>
+</dialog>
+
+<dialog id="reviewDialog" class="modal">
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2>Leave a review</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <p class="muted" data-review-doctor></p>
+    <div class="stars" role="radiogroup" aria-label="Rating" data-review-stars>
+      <button class="kebab-item" type="button" data-star="1">★</button>
+      <button class="kebab-item" type="button" data-star="2">★</button>
+      <button class="kebab-item" type="button" data-star="3">★</button>
+      <button class="kebab-item" type="button" data-star="4">★</button>
+      <button class="kebab-item" type="button" data-star="5">★</button>
+    </div>
+    <label style="text-align:left;">
+      Message (optional)
+      <textarea rows="3" data-review-message></textarea>
+    </label>
+    <div class="modal-actions">
+      <a class="btn secondary" href="/messages" data-review-message-btn>Send message</a>
+      <button class="btn primary" type="button" data-submit-review>Submit</button>
+      <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
+    </div>
+  </div>
+</dialog>
+{% endblock %}
