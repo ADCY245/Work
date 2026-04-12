@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}Doctor Calendar | PhysiHome{% endblock %}
+{% block content %}
+<section class="admin-calendar" data-admin-calendar>
+  <header class="auth-header">
+    <h1>Doctor Calendar</h1>
+    <p>Manage appointments for doctors assigned to you.</p>
+    {% if unassigned_count %}
+    <p class="muted">{{ unassigned_count }} verified doctor{% if unassigned_count != 1 %}s{% endif %} still unassigned.</p>
+    {% endif %}
+  </header>
+
+  <div class="calendar-layout">
+    <aside class="calendar-sidebar">
+      <h2>Your Doctors</h2>
+      {% if doctors and doctors|length %}
+      <div class="stack">
+        {% for d in doctors %}
+        <button class="doctor-calendar-item" type="button" data-admin-calendar-doctor="{{ d._id }}">
+          <strong>{{ d.name }}</strong>
+          <span>{{ d.specialization }}</span>
+        </button>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="muted">No doctors assigned to you yet.</p>
+      <a class="btn secondary" href="/admin">Assign doctors</a>
+      {% endif %}
+    </aside>
+
+    <div class="calendar-panel">
+      <div class="calendar-panel-header">
+        <div>
+          <p class="eyebrow">Appointments</p>
+          <h2 data-admin-calendar-title>All assigned doctors</h2>
+        </div>
+        <button class="btn secondary" type="button" data-admin-calendar-refresh>Refresh</button>
+      </div>
+      <div class="appointment-list" data-admin-appointments>
+        <p class="muted">Loading appointments...</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<dialog class="modal appointment-modal" id="adminAppointmentDialog" data-admin-appointment-dialog>
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2>Change appointment</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <form class="stack" data-admin-appointment-form>
+      <input type="hidden" name="appointment_id" />
+      <label>
+        Date
+        <input type="date" name="date" required />
+      </label>
+      <label>
+        Visit type
+        <select name="mode">
+          <option value="online">Online meet</option>
+          <option value="offline">Offline appointment</option>
+        </select>
+      </label>
+      <div>
+        <p class="small">Select continuous one-hour slots.</p>
+        <div class="slot-grid" data-admin-slot-grid></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" type="submit">Request change</button>
+        <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+{% endblock %}

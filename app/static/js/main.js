@@ -487,7 +487,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const messagesList = document.querySelector("[data-messages-list]");
     const activeThreadId = conversationPanel?.dataset.activeThreadId;
     const sendForm = document.querySelector("[data-send-form]");
+    const appointmentStrip = document.querySelector("[data-chat-appointments]");
+    const appointmentDialog = document.querySelector("[data-appointment-dialog]");
+    const appointmentForm = document.querySelector("[data-appointment-form]");
+    const appointmentTitle = document.querySelector("[data-appointment-title]");
+    const appointmentSubmit = document.querySelector("[data-appointment-submit]");
+    const slotGrid = document.querySelector("[data-slot-grid]");
+    const openAppointmentBtn = document.querySelector("[data-open-appointment]");
     let isSending = false;
+    let calendarState = null;
 
     const setBadge = (count) => {
       if (!navBadge) return;
@@ -518,22 +526,14 @@ document.addEventListener("DOMContentLoaded", () => {
       threadsList.innerHTML = "";
       threads.forEach((t) => {
         const a = document.createElement("a");
-        a.className = "card";
+        a.className = "thread-link";
         a.href = `/messages/${t._id}`;
-        a.style.padding = "0.75rem";
-        a.style.textDecoration = "none";
         a.dataset.threadLocked = t.locked ? "1" : "0";
-        if (t.locked) {
-          a.style.opacity = "0.6";
-          a.style.cursor = "not-allowed";
-        }
         if (t.unread_count > 0) {
-          a.style.outline = "2px solid rgba(245, 158, 11, 0.35)";
+          a.dataset.threadUnread = "1";
         }
 
         const title = document.createElement("strong");
-        title.style.display = "block";
-        title.style.color = "inherit";
         title.textContent = t.title;
         a.appendChild(title);
 
@@ -594,17 +594,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const row = document.createElement("div");
-        row.style.display = "flex";
-        row.style.justifyContent = m.is_me ? "flex-end" : "flex-start";
+        row.className = m.is_me ? "message-row me" : "message-row";
         if (m.created_at) row.dataset.createdAt = m.created_at;
 
         const bubble = document.createElement("div");
-        bubble.className = "card";
-        bubble.style.padding = "0.6rem 0.75rem";
-        bubble.style.maxWidth = "70%";
+        bubble.className = "message-bubble";
 
         const text = document.createElement("div");
-        text.style.whiteSpace = "pre-wrap";
         text.textContent = m.text;
         bubble.appendChild(text);
         row.appendChild(bubble);
@@ -614,6 +610,142 @@ document.addEventListener("DOMContentLoaded", () => {
         if (m.created_at) lastSeen = m.created_at;
       });
       messagesList.scrollTop = messagesList.scrollHeight;
+    };
+
+    const slotLabel = (hour) => {
+      const formatHour = (h) => {
+        const normalized = ((h % 24) + 24) % 24;
+        const suffix = normalized >= 12 ? "PM" : "AM";
+        const display = normalized % 12 || 12;
+        return `${display} ${suffix}`;
+      };
+      return `${formatHour(hour)}-${formatHour(hour + 1)}`;
+    };
+
+    const renderSlotGrid = () => {
+      if (!slotGrid) return;
+      slotGrid.innerHTML = "";
+      for (let hour = 7; hour <= 21; hour += 1) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-chip";
+        btn.dataset.slotHour = String(hour);
+        btn.textContent = slotLabel(hour);
+        btn.addEventListener("click", () => {
+          btn.classList.toggle("selected");
+        });
+        slotGrid.appendChild(btn);
+      }
+    };
+
+    const selectedSlots = () =>
+      Array.from(slotGrid?.querySelectorAll(".slot-chip.selected") || [])
+        .map((btn) => Number(btn.dataset.slotHour))
+        .sort((a, b) => a - b);
+
+    const openAppointmentDialog = (appointment = null) => {
+      if (!appointmentDialog || !appointmentForm) return;
+      appointmentForm.reset();
+      appointmentForm.elements.appointment_id.value = appointment?._id || "";
+      renderSlotGrid();
+      if (appointmentTitle) {
+        appointmentTitle.textContent = appointment ? "Change appointment" : "Share appointment slot";
+      }
+      if (appointmentSubmit) {
+        appointmentSubmit.textContent = appointment ? "Request change" : "Share slot";
+      }
+      if (appointment?.start_at) {
+        const start = new Date(appointment.start_at);
+        const end = new Date(appointment.end_at);
+        appointmentForm.elements.date.value = start.toISOString().slice(0, 10);
+        appointmentForm.elements.mode.value = appointment.mode || "online";
+        for (let h = start.getHours(); h < end.getHours(); h += 1) {
+          slotGrid?.querySelector(`[data-slot-hour="${h}"]`)?.classList.add("selected");
+        }
+      } else {
+        appointmentForm.elements.date.value = new Date().toISOString().slice(0, 10);
+      }
+      appointmentDialog.showModal?.();
+    };
+
+    const renderAppointments = (appointments) => {
+      if (!appointmentStrip) return;
+      appointmentStrip.innerHTML = "";
+      if (!appointments.length) {
+        appointmentStrip.hidden = true;
+        return;
+      }
+      appointmentStrip.hidden = false;
+      appointments.forEach((appointment) => {
+        const card = document.createElement("article");
+        card.className = "appointment-card";
+
+        const header = document.createElement("header");
+        const title = document.createElement("strong");
+        title.textContent = appointment.label;
+        const status = document.createElement("span");
+        status.className = "badge";
+        status.textContent = appointment.status.replace("_", " ");
+        header.append(title, status);
+
+        const meta = document.createElement("p");
+        meta.className = "muted small";
+        meta.textContent = `${appointment.mode} appointment with ${appointment.doctor_name}`;
+
+        const footer = document.createElement("footer");
+        const approvals = document.createElement("span");
+        approvals.className = "small";
+        approvals.textContent = `${appointment.approvals_count}/2 approvals`;
+        footer.appendChild(approvals);
+
+        if (!appointment.approved_by_me && appointment.status !== "booked") {
+          const approve = document.createElement("button");
+          approve.className = "btn primary";
+          approve.type = "button";
+          approve.textContent = "Approve";
+          approve.addEventListener("click", async () => {
+            const res = await fetch(`/api/appointments/${appointment._id}/approve`, { method: "POST" });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              alert(data.error || "Could not approve appointment");
+              return;
+            }
+            await loadCalendar();
+          });
+          footer.appendChild(approve);
+        }
+
+        const edit = document.createElement("button");
+        edit.className = "icon-btn";
+        edit.type = "button";
+        edit.title = "Change appointment";
+        edit.setAttribute("aria-label", "Change appointment");
+        edit.textContent = "Edit";
+        edit.addEventListener("click", () => openAppointmentDialog(appointment));
+        footer.appendChild(edit);
+
+        card.append(header, meta, footer);
+        appointmentStrip.appendChild(card);
+      });
+    };
+
+    const loadCalendar = async () => {
+      if (!activeThreadId || !appointmentStrip) return;
+      try {
+        const res = await fetch(`/api/messages/${activeThreadId}/calendar`, {
+          headers: { Accept: "application/json" },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          if (openAppointmentBtn) openAppointmentBtn.hidden = true;
+          return;
+        }
+        calendarState = data;
+        if (openAppointmentBtn) openAppointmentBtn.hidden = !data.can_propose;
+        renderAppointments(data.appointments || []);
+      } catch {
+        // ignore
+      }
     };
 
     const markRead = async () => {
@@ -659,10 +791,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (threadsList) {
       refreshThreads();
-      setInterval(refreshThreads, 2500);
+      setInterval(refreshThreads, 10000);
     }
     if (navBadge) {
-      setInterval(fetchUnread, 2500);
+      setInterval(fetchUnread, 10000);
     }
     if (activeThreadId && messagesList) {
       const existing = Array.from(
@@ -672,7 +804,9 @@ document.addEventListener("DOMContentLoaded", () => {
         lastSeen = existing[existing.length - 1].dataset.createdAt || null;
       }
       markRead();
-      setInterval(pollActiveConversation, 2000);
+      setInterval(pollActiveConversation, 5000);
+      loadCalendar();
+      setInterval(loadCalendar, 15000);
     }
 
     if (sendForm && activeThreadId && messagesList) {
@@ -722,6 +856,40 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     }
+
+    openAppointmentBtn?.addEventListener("click", () => openAppointmentDialog());
+
+    appointmentForm?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (!activeThreadId) return;
+      const slots = selectedSlots();
+      const date = appointmentForm.elements.date.value;
+      const mode = appointmentForm.elements.mode.value;
+      const appointmentId = appointmentForm.elements.appointment_id.value;
+      const payload = { date, mode, slots };
+      const url = appointmentId
+        ? `/api/appointments/${appointmentId}/reschedule`
+        : `/api/messages/${activeThreadId}/appointments`;
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.error || "Could not save appointment");
+          return;
+        }
+        appointmentDialog?.close?.();
+        await loadCalendar();
+        if (!appointmentId) {
+          await pollActiveConversation();
+        }
+      } catch {
+        alert("Could not save appointment");
+      }
+    });
   };
 
   const initDescriptionEditor = () => {
@@ -1000,6 +1168,184 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
+  const initAdminDoctorAssignment = () => {
+    document.querySelectorAll("[data-assign-doctor]").forEach((button) => {
+      button.addEventListener("click", async () => {
+        const doctorId = button.dataset.assignDoctor;
+        if (!doctorId) return;
+        button.disabled = true;
+        try {
+          const res = await fetch(`/api/admin/doctors/${doctorId}/assign`, {
+            method: "POST",
+            headers: { Accept: "application/json" },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            alert(data.error || "Could not assign doctor");
+            button.disabled = false;
+            return;
+          }
+          window.location.reload();
+        } catch {
+          alert("Could not assign doctor");
+          button.disabled = false;
+        }
+      });
+    });
+  };
+
+  const initAdminCalendar = () => {
+    const root = document.querySelector("[data-admin-calendar]");
+    if (!root) return;
+    const list = root.querySelector("[data-admin-appointments]");
+    const title = root.querySelector("[data-admin-calendar-title]");
+    const refresh = root.querySelector("[data-admin-calendar-refresh]");
+    const dialog = document.querySelector("[data-admin-appointment-dialog]");
+    const form = document.querySelector("[data-admin-appointment-form]");
+    const slotGrid = document.querySelector("[data-admin-slot-grid]");
+    let activeDoctorId = "";
+    let currentAppointments = [];
+
+    const slotLabel = (hour) => {
+      const formatHour = (h) => {
+        const normalized = ((h % 24) + 24) % 24;
+        const suffix = normalized >= 12 ? "PM" : "AM";
+        const display = normalized % 12 || 12;
+        return `${display} ${suffix}`;
+      };
+      return `${formatHour(hour)}-${formatHour(hour + 1)}`;
+    };
+
+    const renderSlots = () => {
+      if (!slotGrid) return;
+      slotGrid.innerHTML = "";
+      for (let hour = 7; hour <= 21; hour += 1) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-chip";
+        btn.dataset.slotHour = String(hour);
+        btn.textContent = slotLabel(hour);
+        btn.addEventListener("click", () => btn.classList.toggle("selected"));
+        slotGrid.appendChild(btn);
+      }
+    };
+
+    const selectedSlots = () =>
+      Array.from(slotGrid?.querySelectorAll(".slot-chip.selected") || [])
+        .map((btn) => Number(btn.dataset.slotHour))
+        .sort((a, b) => a - b);
+
+    const openEdit = (appointment) => {
+      if (!dialog || !form || !appointment) return;
+      form.reset();
+      renderSlots();
+      form.elements.appointment_id.value = appointment._id;
+      form.elements.mode.value = appointment.mode || "online";
+      const start = new Date(appointment.start_at);
+      const end = new Date(appointment.end_at);
+      form.elements.date.value = start.toISOString().slice(0, 10);
+      for (let h = start.getHours(); h < end.getHours(); h += 1) {
+        slotGrid?.querySelector(`[data-slot-hour="${h}"]`)?.classList.add("selected");
+      }
+      dialog.showModal?.();
+    };
+
+    const render = (appointments) => {
+      if (!list) return;
+      list.innerHTML = "";
+      if (!appointments.length) {
+        const empty = document.createElement("p");
+        empty.className = "muted";
+        empty.textContent = "No appointments yet.";
+        list.appendChild(empty);
+        return;
+      }
+      appointments.forEach((appointment) => {
+        const card = document.createElement("article");
+        card.className = "appointment-card";
+        const header = document.createElement("header");
+        const name = document.createElement("strong");
+        name.textContent = appointment.label;
+        const status = document.createElement("span");
+        status.className = "badge";
+        status.textContent = appointment.status.replace("_", " ");
+        header.append(name, status);
+        const details = document.createElement("p");
+        details.className = "muted small";
+        details.textContent = `${appointment.doctor_name} with ${appointment.patient_name} (${appointment.mode})`;
+        const footer = document.createElement("footer");
+        const edit = document.createElement("button");
+        edit.className = "icon-btn";
+        edit.type = "button";
+        edit.textContent = "Edit";
+        edit.setAttribute("aria-label", "Change appointment");
+        edit.addEventListener("click", () => openEdit(appointment));
+        footer.appendChild(edit);
+        card.append(header, details, footer);
+        list.appendChild(card);
+      });
+    };
+
+    const load = async () => {
+      if (!list) return;
+      list.innerHTML = '<p class="muted">Loading appointments...</p>';
+      const url = new URL("/api/admin/calendar", window.location.origin);
+      if (activeDoctorId) url.searchParams.set("doctor_id", activeDoctorId);
+      try {
+        const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          list.innerHTML = "";
+          const error = document.createElement("p");
+          error.className = "alert error";
+          error.textContent = data.error || "Could not load calendar";
+          list.appendChild(error);
+          return;
+        }
+        currentAppointments = data.appointments || [];
+        render(currentAppointments);
+      } catch {
+        list.innerHTML = '<p class="alert error">Could not load calendar</p>';
+      }
+    };
+
+    root.querySelectorAll("[data-admin-calendar-doctor]").forEach((button) => {
+      button.addEventListener("click", () => {
+        activeDoctorId = button.dataset.adminCalendarDoctor || "";
+        if (title) title.textContent = button.querySelector("strong")?.textContent || "Doctor appointments";
+        load();
+      });
+    });
+    refresh?.addEventListener("click", load);
+    form?.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const appointmentId = form.elements.appointment_id.value;
+      if (!appointmentId) return;
+      const payload = {
+        date: form.elements.date.value,
+        mode: form.elements.mode.value,
+        slots: selectedSlots(),
+      };
+      try {
+        const res = await fetch(`/api/appointments/${appointmentId}/reschedule`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.error || "Could not change appointment");
+          return;
+        }
+        dialog?.close?.();
+        load();
+      } catch {
+        alert("Could not change appointment");
+      }
+    });
+    load();
+  };
+
   const initAdminActions = () => {
     if (!document.querySelector("[data-admin-dashboard]")) return;
 
@@ -1046,5 +1392,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initDescriptionEditor();
   initDoctorCards();
   initAdminKebabMenus();
+  initAdminDoctorAssignment();
+  initAdminCalendar();
   initMessaging();
 });

@@ -65,10 +65,12 @@ ul {
 .navbar {
   max-width: 1200px;
   margin: 0 auto;
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  justify-content: space-between;
-  padding: 1rem 1.5rem;
+  gap: 1.25rem;
+  padding: 0.85rem 1.5rem;
+  min-height: 72px;
 }
 
 .brand {
@@ -80,7 +82,9 @@ ul {
 
 .nav-links {
   display: flex;
-  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
   font-weight: 500;
   color: var(--muted);
 }
@@ -94,8 +98,9 @@ ul {
   background: transparent;
   font: inherit;
   color: inherit;
-  padding: 0.35rem 0.25rem;
+  padding: 0.45rem 0.65rem;
   cursor: pointer;
+  line-height: 1.2;
 }
 
 .nav-dropdown > .nav-link::after {
@@ -152,8 +157,17 @@ ul {
   color: var(--brand-dark);
 }
 
+.nav-links > li > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0.45rem 0.65rem;
+  line-height: 1.2;
+}
+
 .profile-menu {
   position: relative;
+  justify-self: end;
 }
 
 .profile-icon {
@@ -333,7 +347,7 @@ main {
 }
 
 .btn {
-  border-radius: 999px;
+  border-radius: 8px;
   padding: 0.75rem 1.75rem;
   font-weight: 600;
   cursor: pointer;
@@ -946,7 +960,7 @@ input,
 select,
 textarea {
   padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
+  border-radius: 8px;
   border: 1px solid rgba(27, 36, 64, 0.2);
   font-size: 1rem;
   font-family: inherit;
@@ -1352,7 +1366,7 @@ textarea:focus {
   margin: 2rem auto;
   background: var(--card);
   padding: 2rem;
-  border-radius: 1.5rem;
+  border-radius: 8px;
   box-shadow: 0 20px 60px rgba(9, 12, 36, 0.08);
 }
 
@@ -1369,6 +1383,177 @@ textarea:focus {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 1rem;
+}
+
+.messages-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.messages-inbox,
+.conversation-panel,
+.calendar-sidebar,
+.calendar-panel {
+  border: 1px solid rgba(18, 18, 33, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  padding: 1rem;
+}
+
+.messages-inbox h3,
+.conversation-toolbar h3 {
+  margin: 0;
+}
+
+.threads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.thread-link {
+  display: block;
+  padding: 0.75rem;
+  border: 1px solid rgba(18, 18, 33, 0.08);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.thread-link strong {
+  display: block;
+  color: inherit;
+}
+
+.thread-link[data-thread-locked="1"] {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.conversation-toolbar,
+.conversation-actions,
+.calendar-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.messages-list {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 320px;
+  max-height: 52vh;
+  overflow: auto;
+}
+
+.message-row {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.message-row.me {
+  justify-content: flex-end;
+}
+
+.message-bubble {
+  max-width: min(70%, 520px);
+  padding: 0.6rem 0.75rem;
+  border: 1px solid rgba(18, 18, 33, 0.08);
+  border-radius: 8px;
+  background: #fff;
+  white-space: pre-wrap;
+}
+
+.message-row.me .message-bubble {
+  background: var(--brand-soft);
+  border-color: rgba(34, 211, 238, 0.22);
+}
+
+.message-form {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.message-form input {
+  flex: 1;
+  min-width: 0;
+}
+
+.appointment-strip {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.appointment-card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid rgba(34, 211, 238, 0.28);
+  border-radius: 8px;
+  background: rgba(34, 211, 238, 0.08);
+}
+
+.appointment-card header,
+.appointment-card footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.slot-chip {
+  border: 1px solid rgba(27, 36, 64, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  padding: 0.5rem;
+  font-weight: 700;
+}
+
+.slot-chip.selected {
+  background: var(--brand);
+  border-color: var(--brand-dark);
+  color: #fff;
+}
+
+.calendar-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.doctor-calendar-item {
+  display: grid;
+  gap: 0.15rem;
+  text-align: left;
+  padding: 0.75rem;
+  border: 1px solid rgba(18, 18, 33, 0.08);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.doctor-calendar-item span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.appointment-list {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1rem;
 }
 
 .thread-card {
@@ -1644,6 +1829,10 @@ textarea:focus {
 }
 
 @media (max-width: 640px) {
+  .navbar {
+    grid-template-columns: 1fr auto;
+  }
+
   .nav-links {
     display: none;
   }
@@ -1661,6 +1850,23 @@ textarea:focus {
   }
 
   .documents {
+    flex-direction: column;
+  }
+
+  .messages-board {
+    padding: 1rem;
+  }
+
+  .messages-layout,
+  .calendar-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .message-bubble {
+    max-width: 86%;
+  }
+
+  .message-form {
     flex-direction: column;
   }
 }

@@ -5,6 +5,7 @@
   <header class="auth-header">
     <h1>Admin Dashboard</h1>
     <p>Manage users and doctor verifications</p>
+    <p><a class="btn secondary" href="/admin/calendar">Open doctor calendar</a></p>
   </header>
 
   <div class="tabs" data-tab-group>
@@ -86,6 +87,10 @@
           </div>
         </header>
         <p>Specialization: {{ d.specialization or 'General' }}</p>
+        <p>Admin: {{ d.assigned_admin_name or 'Unassigned' }}</p>
+        {% if not d.assigned_admin_id %}
+        <button class="btn secondary" type="button" data-assign-doctor="{{ d._id }}">Assign to me</button>
+        {% endif %}
       </article>
       {% endfor %}
       {% if doctors|length == 0 %}

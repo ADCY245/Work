@@ -11,17 +11,17 @@
     <a class="btn secondary" href="/messages/start-admin">Any issues? Contact admin</a>
   </div>
 
-  <div style="display:grid; grid-template-columns: 320px 1fr; gap: 1rem;">
-    <div class="card" style="padding: 1rem;" data-threads-panel>
-      <h3 style="margin-top:0;">Inbox</h3>
+  <div class="messages-layout">
+    <div class="messages-inbox" data-threads-panel>
+      <h3>Inbox</h3>
       {% if threads and threads|length %}
-        <div class="threads" style="margin-top: 0.75rem; display:flex; flex-direction:column; gap:0.5rem;" data-threads-list>
+        <div class="threads-list" data-threads-list>
           {% for thread in threads %}
-            <a class="card" style="padding:0.75rem; text-decoration:none;" href="/messages/{{ thread._id }}" data-thread-item data-thread-id="{{ thread._id }}" data-thread-unread="{{ 1 if thread.unread_count and thread.unread_count > 0 else 0 }}" data-thread-locked="{{ 1 if thread.locked else 0 }}">
-              <strong style="display:block; color: inherit;">{{ thread.title }}</strong>
+            <a class="thread-link" href="/messages/{{ thread._id }}" data-thread-item data-thread-id="{{ thread._id }}" data-thread-unread="{{ 1 if thread.unread_count and thread.unread_count > 0 else 0 }}" data-thread-locked="{{ 1 if thread.locked else 0 }}">
+              <strong>{{ thread.title }}</strong>
               <span class="muted small">Open conversation</span>
               {% if thread.unread_count and thread.unread_count > 0 %}
-              <span class="badge" style="margin-left:0.5rem;" data-thread-unread-badge>{{ thread.unread_count }}</span>
+              <span class="badge" data-thread-unread-badge>{{ thread.unread_count }}</span>
               {% endif %}
             </a>
           {% endfor %}
@@ -32,21 +32,27 @@
       {% endif %}
     </div>
 
-    <div class="card" style="padding: 1rem;" data-conversation-panel data-active-thread-id="{{ conversation._id if conversation else '' }}">
+    <div class="conversation-panel" data-conversation-panel data-active-thread-id="{{ conversation._id if conversation else '' }}">
       {% if conversation %}
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:0.75rem;">
-          <h3 style="margin:0;">Conversation</h3>
-          <a class="btn secondary" href="/messages">Back</a>
+        <div class="conversation-toolbar">
+          <h3>Conversation</h3>
+          <div class="conversation-actions">
+            {% if current_user and current_user.role == 'doctor' %}
+            <button class="icon-btn" type="button" title="Share appointment slot" aria-label="Share appointment slot" data-open-appointment>Cal</button>
+            {% endif %}
+            <a class="btn secondary" href="/messages">Back</a>
+          </div>
         </div>
-        <div style="margin-top: 0.75rem; display:flex; flex-direction:column; gap:0.5rem; max-height: 52vh; overflow:auto;" data-messages-list>
+        <div class="appointment-strip" data-chat-appointments hidden></div>
+        <div class="messages-list" data-messages-list>
           {% for msg in messages %}
             {% if msg.is_me %}
-            <div style="display:flex; justify-content: flex-end;" data-created-at="{{ msg.created_at }}">
+            <div class="message-row me" data-created-at="{{ msg.created_at }}">
             {% else %}
-            <div style="display:flex; justify-content: flex-start;" data-created-at="{{ msg.created_at }}">
+            <div class="message-row" data-created-at="{{ msg.created_at }}">
             {% endif %}
-              <div class="card" style="padding:0.6rem 0.75rem; max-width: 70%;">
-                <div style="white-space: pre-wrap;">{{ msg.text }}</div>
+              <div class="message-bubble">
+                <div>{{ msg.text }}</div>
               </div>
             </div>
           {% endfor %}
@@ -54,8 +60,8 @@
             <p class="muted">No messages yet. Send the first one.</p>
           {% endif %}
         </div>
-        <form method="post" action="/messages/{{ conversation._id }}/send" style="margin-top: 0.75rem; display:flex; gap:0.5rem;" data-send-form>
-          <input name="text" type="text" placeholder="Type a message" style="flex:1;" />
+        <form method="post" action="/messages/{{ conversation._id }}/send" class="message-form" data-send-form>
+          <input name="text" type="text" placeholder="Type a message" />
           <button class="btn primary" type="submit">Send</button>
         </form>
       {% else %}
@@ -65,4 +71,35 @@
     </div>
   </div>
 </section>
+
+<dialog class="modal appointment-modal" id="appointmentDialog" data-appointment-dialog>
+  <div class="modal-body">
+    <div class="modal-header">
+      <h2 data-appointment-title>Share appointment slot</h2>
+      <button class="lightbox-close" type="button" aria-label="Close" data-dialog-close>&times;</button>
+    </div>
+    <form class="stack" data-appointment-form>
+      <input type="hidden" name="appointment_id" />
+      <label>
+        Date
+        <input type="date" name="date" required />
+      </label>
+      <label>
+        Visit type
+        <select name="mode">
+          <option value="online">Online meet</option>
+          <option value="offline">Offline appointment</option>
+        </select>
+      </label>
+      <div>
+        <p class="small">Select continuous one-hour slots.</p>
+        <div class="slot-grid" data-slot-grid></div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn primary" type="submit" data-appointment-submit>Share slot</button>
+        <button class="btn secondary" type="button" data-dialog-close>Cancel</button>
+      </div>
+    </form>
+  </div>
+</dialog>
 {% endblock %}

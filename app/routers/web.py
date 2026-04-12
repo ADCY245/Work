@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import APIRouter, Form, Request, Query
+from fastapi import APIRouter, Body, Form, Request, Query
 from fastapi.templating import Jinja2Templates
 from bson import ObjectId
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
@@ -241,6 +241,126 @@ def _is_admin_user(user: dict | None) -> bool:
     return bool(email and email in set(_admin_emails()))
 
 
+def _user_display_name(user: dict | None) -> str:
+    if not user:
+        return "User"
+    name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+    if (user.get("role") or "").strip().lower() == "doctor":
+        return f"Dr. {name}".strip()
+    return name or str(user.get("email") or "User")
+
+
+def _appointment_time_label(start_at: datetime, end_at: datetime) -> str:
+    start = start_at.strftime("%d %b %Y, %I:%M %p").lstrip("0")
+    end = end_at.strftime("%I:%M %p").lstrip("0")
+    return f"{start} - {end}"
+
+
+def _parse_slot_payload(payload: dict) -> tuple[datetime | None, datetime | None, str | None]:
+    date_raw = str(payload.get("date") or "").strip()
+    slots_raw = payload.get("slots") or []
+    if not date_raw:
+        return None, None, "date is required"
+    if not isinstance(slots_raw, list):
+        return None, None, "slots must be a list"
+    try:
+        slot_hours = sorted({int(hour) for hour in slots_raw})
+    except Exception:
+        return None, None, "slots must be valid hours"
+    if not slot_hours:
+        return None, None, "select at least one slot"
+    if any(hour < 0 or hour > 23 for hour in slot_hours):
+        return None, None, "slots must be between 0 and 23"
+    expected = list(range(slot_hours[0], slot_hours[-1] + 1))
+    if slot_hours != expected:
+        return None, None, "select continuous slots"
+    try:
+        day = datetime.strptime(date_raw, "%Y-%m-%d")
+    except Exception:
+        return None, None, "date must be YYYY-MM-DD"
+    start_at = day.replace(hour=slot_hours[0], minute=0, second=0, microsecond=0)
+    end_at = day.replace(hour=slot_hours[-1] + 1, minute=0, second=0, microsecond=0)
+    return start_at, end_at, None
+
+
+def _appointment_json(appt: dict, current_user_id: str) -> dict:
+    approvals = appt.get("approvals") or {}
+    required_ids = [str(appt.get("doctor_id") or ""), str(appt.get("patient_id") or "")]
+    start_at = appt.get("start_at")
+    end_at = appt.get("end_at")
+    return {
+        "_id": str(appt.get("_id")),
+        "conversation_id": appt.get("conversation_id"),
+        "doctor_id": appt.get("doctor_id"),
+        "patient_id": appt.get("patient_id"),
+        "doctor_name": appt.get("doctor_name"),
+        "patient_name": appt.get("patient_name"),
+        "mode": appt.get("mode") or "online",
+        "status": appt.get("status") or "pending",
+        "start_at": _iso(start_at),
+        "end_at": _iso(end_at),
+        "label": _appointment_time_label(start_at, end_at) if start_at and end_at else "",
+        "approved_by_me": bool(approvals.get(current_user_id)),
+        "approvals_count": len([uid for uid in required_ids if uid and approvals.get(uid)]),
+        "change_requested_by": appt.get("change_requested_by"),
+    }
+
+
+async def _get_conversation_doctor_patient(db, convo: dict) -> tuple[dict | None, dict | None]:
+    participant_ids = [str(pid) for pid in (convo.get("participants") or [])]
+    users = []
+    for pid in participant_ids:
+        try:
+            found = await db.users.find_one({"_id": ObjectId(pid)})
+        except Exception:
+            found = None
+        if found:
+            users.append(found)
+    doctor = next((u for u in users if (u.get("role") or "").strip().lower() == "doctor"), None)
+    patient = next((u for u in users if str(u.get("_id")) != str(doctor.get("_id"))), None) if doctor else None
+    return doctor, patient
+
+
+async def _admin_can_manage_doctor(admin: dict, doctor: dict | None) -> bool:
+    if not _is_admin_user(admin) or not doctor:
+        return False
+    assigned = doctor.get("assigned_admin_id")
+    return bool(assigned and str(assigned) == str(admin.get("_id")))
+
+
+async def _notify_appointment_fixed(db, appt: dict) -> None:
+    start_at = appt.get("start_at")
+    end_at = appt.get("end_at")
+    if not start_at or not end_at:
+        return
+    body = (
+        "Appointment fixed on PhysiHome: "
+        f"{_appointment_time_label(start_at, end_at)} "
+        f"({appt.get('mode', 'online')}). "
+        f"Doctor: {appt.get('doctor_name')}. Patient: {appt.get('patient_name')}."
+    )
+    recipients = []
+    for uid in [appt.get("doctor_id"), appt.get("patient_id")]:
+        try:
+            user = await db.users.find_one({"_id": ObjectId(str(uid))})
+        except Exception:
+            user = None
+        if user and user.get("phone"):
+            recipients.append(user.get("phone"))
+
+    assigned_admin_id = appt.get("assigned_admin_id")
+    if assigned_admin_id:
+        try:
+            admin = await db.users.find_one({"_id": ObjectId(str(assigned_admin_id))})
+        except Exception:
+            admin = None
+        if admin and admin.get("phone"):
+            recipients.append(admin.get("phone"))
+
+    for phone in recipients:
+        asyncio.create_task(send_whatsapp(phone, body))
+
+
 async def _get_admin_users(db, ensure_mailboxes: bool = True) -> list[dict]:
     admin_emails = _admin_emails()
     admin_email_regexes = [re.compile(f"^{re.escape(e)}$", re.IGNORECASE) for e in admin_emails]
@@ -324,8 +444,8 @@ async def _get_admin_users(db, ensure_mailboxes: bool = True) -> list[dict]:
     return users
 
 
-async def _get_admin_ids(db) -> set[str]:
-    admins = await _get_admin_users(db, ensure_mailboxes=True)
+async def _get_admin_ids(db, ensure_mailboxes: bool = True) -> set[str]:
+    admins = await _get_admin_users(db, ensure_mailboxes=ensure_mailboxes)
     return {str(a.get("_id")) for a in admins if a.get("_id")}
 
 
@@ -356,7 +476,7 @@ async def _restricted_can_access_conversation(db, user: dict, convo: dict) -> bo
     if not other_ids:
         return False
 
-    admin_ids = await _get_admin_ids(db)
+    admin_ids = await _get_admin_ids(db, ensure_mailboxes=False)
     # Restricted doctors may only access the admin broadcast conversation.
     if role == "doctor":
         return bool(admin_ids) and all(pid in admin_ids for pid in other_ids)
@@ -627,7 +747,7 @@ async def messages(request: Request):
     threads = []
 
     restricted_mode = _is_messaging_restricted(user)
-    admin_ids = await _get_admin_ids(db)
+    admin_ids = await _get_admin_ids(db, ensure_mailboxes=False)
     role = str(user.get("role") or "").strip().lower()
 
     cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
@@ -726,7 +846,7 @@ async def message_thread(request: Request, thread_id: str):
 
     threads = []
     restricted_mode = _is_messaging_restricted(user)
-    admin_ids = await _get_admin_ids(db)
+    admin_ids = await _get_admin_ids(db, ensure_mailboxes=False)
     role = str(user.get("role") or "").strip().lower()
 
     cursor_threads = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
@@ -799,7 +919,7 @@ async def api_unread(request: Request):
     user_id = str(user.get("_id"))
     total = 0
     restricted_mode = _is_messaging_restricted(user)
-    admin_ids = await _get_admin_ids(db) if restricted_mode else set()
+    admin_ids = await _get_admin_ids(db, ensure_mailboxes=False) if restricted_mode else set()
 
     cursor = db.conversations.find({"participants": user_id})
     async for convo in cursor:
@@ -819,7 +939,7 @@ async def api_threads(request: Request):
     user_id = str(user.get("_id"))
     threads = []
     restricted_mode = _is_messaging_restricted(user)
-    admin_ids = await _get_admin_ids(db)
+    admin_ids = await _get_admin_ids(db, ensure_mailboxes=False)
     role = str(user.get("role") or "").strip().lower()
 
     cursor = db.conversations.find({"participants": user_id}).sort("updated_at", -1)
@@ -996,6 +1116,234 @@ async def api_mark_read(request: Request, thread_id: str):
     return JSONResponse({"ok": True})
 
 
+@router.get("/api/messages/{thread_id}/calendar")
+async def api_message_calendar(request: Request, thread_id: str):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        convo_oid = ObjectId(thread_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid conversation"}, status_code=400)
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    if _is_messaging_restricted(user) and not (await _restricted_can_access_conversation(db, user, convo)):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    doctor, patient = await _get_conversation_doctor_patient(db, convo)
+    if not doctor or not patient or _is_admin_user(patient):
+        return JSONResponse({"error": "Calendar is available for doctor-patient chats only"}, status_code=400)
+
+    is_doctor = str(doctor.get("_id")) == user_id
+    is_patient = str(patient.get("_id")) == user_id
+    if not (is_doctor or is_patient):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    appointments = await db.appointments.find(
+        {
+            "conversation_id": str(convo_oid),
+            "status": {"$in": ["pending", "booked", "change_requested"]},
+        }
+    ).sort("start_at", 1).to_list(length=50)
+
+    return JSONResponse(
+        {
+            "doctor_id": str(doctor.get("_id")),
+            "patient_id": str(patient.get("_id")),
+            "doctor_name": _user_display_name(doctor),
+            "patient_name": _user_display_name(patient),
+            "can_propose": is_doctor,
+            "appointments": [_appointment_json(a, user_id) for a in appointments],
+        }
+    )
+
+
+@router.post("/api/messages/{thread_id}/appointments")
+async def api_propose_appointment(request: Request, thread_id: str, payload: dict = Body(...)):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    if (user.get("role") or "").strip().lower() != "doctor":
+        return JSONResponse({"error": "Only doctors can share appointment slots"}, status_code=403)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        convo_oid = ObjectId(thread_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid conversation"}, status_code=400)
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    if _is_messaging_restricted(user) and not (await _restricted_can_access_conversation(db, user, convo)):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    doctor, patient = await _get_conversation_doctor_patient(db, convo)
+    if not doctor or not patient or _is_admin_user(patient) or str(doctor.get("_id")) != user_id:
+        return JSONResponse({"error": "Doctor-patient conversation required"}, status_code=400)
+
+    start_at, end_at, error = _parse_slot_payload(payload)
+    if error:
+        return JSONResponse({"error": error}, status_code=400)
+
+    overlap = await db.appointments.find_one(
+        {
+            "doctor_id": user_id,
+            "status": "booked",
+            "start_at": {"$lt": end_at},
+            "end_at": {"$gt": start_at},
+        }
+    )
+    if overlap:
+        return JSONResponse({"error": "That slot is already booked"}, status_code=409)
+
+    now = datetime.utcnow()
+    appt = {
+        "conversation_id": str(convo_oid),
+        "doctor_id": user_id,
+        "patient_id": str(patient.get("_id")),
+        "doctor_name": _user_display_name(doctor),
+        "patient_name": _user_display_name(patient),
+        "assigned_admin_id": doctor.get("assigned_admin_id"),
+        "mode": str(payload.get("mode") or "online").strip().lower(),
+        "status": "pending",
+        "start_at": start_at,
+        "end_at": end_at,
+        "approvals": {user_id: True},
+        "created_by": user_id,
+        "created_at": now,
+        "updated_at": now,
+    }
+    result = await db.appointments.insert_one(appt)
+    appt["_id"] = result.inserted_id
+
+    await db.messages.insert_one(
+        {
+            "conversation_id": str(convo_oid),
+            "sender_id": user_id,
+            "ciphertext": _encrypt_text(f"Appointment slot shared: {_appointment_time_label(start_at, end_at)}"),
+            "created_at": now,
+            "appointment_id": str(result.inserted_id),
+        }
+    )
+    await db.conversations.update_one({"_id": convo_oid}, {"$set": {"updated_at": now}})
+    return JSONResponse({"appointment": _appointment_json(appt, user_id)})
+
+
+@router.post("/api/appointments/{appointment_id}/approve")
+async def api_approve_appointment(request: Request, appointment_id: str):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        appt_oid = ObjectId(appointment_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid appointment"}, status_code=400)
+
+    appt = await db.appointments.find_one({"_id": appt_oid})
+    if not appt:
+        return JSONResponse({"error": "Appointment not found"}, status_code=404)
+    if user_id not in {str(appt.get("doctor_id")), str(appt.get("patient_id"))}:
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    approvals = appt.get("approvals") or {}
+    approvals[user_id] = True
+    status = appt.get("status") or "pending"
+    doctor_id = str(appt.get("doctor_id"))
+    patient_id = str(appt.get("patient_id"))
+    if approvals.get(doctor_id) and approvals.get(patient_id):
+        overlap = await db.appointments.find_one(
+            {
+                "_id": {"$ne": appt_oid},
+                "doctor_id": doctor_id,
+                "status": "booked",
+                "start_at": {"$lt": appt.get("end_at")},
+                "end_at": {"$gt": appt.get("start_at")},
+            }
+        )
+        if overlap:
+            return JSONResponse({"error": "That slot is already booked"}, status_code=409)
+        status = "booked"
+
+    await db.appointments.update_one(
+        {"_id": appt_oid},
+        {"$set": {"approvals": approvals, "status": status, "updated_at": datetime.utcnow()}},
+    )
+    updated = await db.appointments.find_one({"_id": appt_oid})
+    if status == "booked":
+        await _notify_appointment_fixed(db, updated)
+    return JSONResponse({"appointment": _appointment_json(updated, user_id)})
+
+
+@router.post("/api/appointments/{appointment_id}/reschedule")
+async def api_reschedule_appointment(request: Request, appointment_id: str, payload: dict = Body(...)):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        appt_oid = ObjectId(appointment_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid appointment"}, status_code=400)
+
+    appt = await db.appointments.find_one({"_id": appt_oid})
+    if not appt:
+        return JSONResponse({"error": "Appointment not found"}, status_code=404)
+
+    doctor = await db.users.find_one({"_id": ObjectId(str(appt.get("doctor_id")))})
+    allowed = user_id in {str(appt.get("doctor_id")), str(appt.get("patient_id"))}
+    if not allowed and not (await _admin_can_manage_doctor(user, doctor)):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    start_at, end_at, error = _parse_slot_payload(payload)
+    if error:
+        return JSONResponse({"error": error}, status_code=400)
+
+    overlap = await db.appointments.find_one(
+        {
+            "_id": {"$ne": appt_oid},
+            "doctor_id": str(appt.get("doctor_id")),
+            "status": "booked",
+            "start_at": {"$lt": end_at},
+            "end_at": {"$gt": start_at},
+        }
+    )
+    if overlap:
+        return JSONResponse({"error": "That slot is already booked"}, status_code=409)
+
+    approvals = {user_id: True}
+    if await _admin_can_manage_doctor(user, doctor):
+        approvals[str(appt.get("doctor_id"))] = True
+
+    await db.appointments.update_one(
+        {"_id": appt_oid},
+        {
+            "$set": {
+                "start_at": start_at,
+                "end_at": end_at,
+                "mode": str(payload.get("mode") or appt.get("mode") or "online").strip().lower(),
+                "status": "change_requested",
+                "approvals": approvals,
+                "change_requested_by": user_id,
+                "updated_at": datetime.utcnow(),
+            }
+        },
+    )
+    updated = await db.appointments.find_one({"_id": appt_oid})
+    return JSONResponse({"appointment": _appointment_json(updated, user_id)})
+
+
 @router.post("/messages/{thread_id}/send")
 async def send_message(request: Request, thread_id: str, text: str = Form("")):
     user = await get_user_from_request(request)
@@ -1147,6 +1495,8 @@ async def admin_dashboard(request: Request):
             "city": record.get("city"),
             "preferred_pin": record.get("preferred_pin"),
             "description": record.get("description"),
+            "assigned_admin_id": record.get("assigned_admin_id"),
+            "assigned_admin_name": record.get("assigned_admin_name"),
             "restricted": bool(record.get("restricted")),
             "self_photo_url": None,
             "degree_photo_url": None,
@@ -1180,6 +1530,99 @@ async def admin_dashboard(request: Request):
             pending=pending_verification,
         ),
     )
+
+
+@router.get("/admin/calendar", response_class=HTMLResponse)
+async def admin_calendar(request: Request):
+    user = await get_user_from_request(request)
+    if not user or not _is_admin_user(user):
+        return RedirectResponse(url="/login", status_code=303)
+
+    db = get_database()
+    admin_id = str(user.get("_id"))
+    doctors = await db.users.find(
+        {"role": "doctor", "doctor_verification_status": "verified", "assigned_admin_id": admin_id},
+        {"first_name": 1, "last_name": 1, "email": 1, "phone": 1, "specialization": 1},
+    ).sort("first_name", 1).to_list(length=100)
+    unassigned_count = await db.users.count_documents(
+        {
+            "role": "doctor",
+            "doctor_verification_status": "verified",
+            "$or": [{"assigned_admin_id": {"$exists": False}}, {"assigned_admin_id": None}, {"assigned_admin_id": ""}],
+        }
+    )
+    return templates.TemplateResponse(
+        "dashboard/calendar.html",
+        await build_context(
+            request,
+            doctors=[
+                {
+                    "_id": str(d.get("_id")),
+                    "name": _user_display_name(d),
+                    "email": d.get("email"),
+                    "phone": d.get("phone"),
+                    "specialization": d.get("specialization") or "General",
+                }
+                for d in doctors
+            ],
+            unassigned_count=unassigned_count,
+        ),
+    )
+
+
+@router.get("/api/admin/calendar")
+async def api_admin_calendar(request: Request, doctor_id: str | None = Query(None)):
+    user = await get_user_from_request(request)
+    if not user or not _is_admin_user(user):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+
+    db = get_database()
+    admin_id = str(user.get("_id"))
+    query = {"assigned_admin_id": admin_id, "role": "doctor"}
+    if doctor_id:
+        try:
+            query["_id"] = ObjectId(doctor_id)
+        except Exception:
+            return JSONResponse({"error": "Invalid doctor"}, status_code=400)
+    doctors = await db.users.find(query, {"first_name": 1, "last_name": 1}).to_list(length=100)
+    doctor_ids = [str(d.get("_id")) for d in doctors]
+    appointments = []
+    if doctor_ids:
+        appointments = await db.appointments.find(
+            {"doctor_id": {"$in": doctor_ids}, "status": {"$in": ["pending", "booked", "change_requested"]}}
+        ).sort("start_at", 1).to_list(length=200)
+    return JSONResponse(
+        {
+            "doctors": [{"_id": str(d.get("_id")), "name": _user_display_name(d)} for d in doctors],
+            "appointments": [_appointment_json(a, admin_id) for a in appointments],
+        }
+    )
+
+
+@router.post("/api/admin/doctors/{doctor_id}/assign")
+async def api_assign_doctor_to_admin(request: Request, doctor_id: str):
+    user = await get_user_from_request(request)
+    if not user or not _is_admin_user(user):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+
+    db = get_database()
+    try:
+        doctor_oid = ObjectId(doctor_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid doctor"}, status_code=400)
+    doctor = await db.users.find_one({"_id": doctor_oid, "role": "doctor"})
+    if not doctor:
+        return JSONResponse({"error": "Doctor not found"}, status_code=404)
+
+    assigned = doctor.get("assigned_admin_id")
+    if assigned and str(assigned) != str(user.get("_id")):
+        return JSONResponse({"error": "This doctor is assigned to another admin"}, status_code=403)
+
+    await db.users.update_one(
+        {"_id": doctor_oid},
+        {"$set": {"assigned_admin_id": str(user.get("_id")), "assigned_admin_name": _user_display_name(user)}},
+    )
+    return JSONResponse({"ok": True})
 
 
 @router.post("/api/admin/cleanup-admin-chats")
