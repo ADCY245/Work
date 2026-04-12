@@ -324,6 +324,12 @@ def _is_admin_user(user: dict | None) -> bool:
     return bool(email and email in set(_admin_emails()))
 
 
+def _is_super_admin_user(user: dict | None) -> bool:
+    if not user:
+        return False
+    return str(user.get("email") or "").strip().lower() == "info@physihome.shop"
+
+
 def _user_display_name(user: dict | None) -> str:
     if not user:
         return "User"
@@ -1604,15 +1610,17 @@ async def admin_dashboard(request: Request):
     user = await get_user_from_request(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
-    if not user.get("is_admin"):
+    if not _is_admin_user(user):
         return RedirectResponse(url="/profile", status_code=303)
 
     db = get_database()
     users = await db.users.find().to_list(length=200)
+    super_admin = _is_super_admin_user(user)
 
     users_list = []
     doctors_verified = []
     pending_verification = []
+    admin_profiles = []
 
     for record in users:
         profile = {
@@ -1653,6 +1661,15 @@ async def admin_dashboard(request: Request):
         else:
             users_list.append(profile)
 
+        if _is_admin_user(record):
+            admin_profiles.append(
+                {
+                    "_id": str(record.get("_id")),
+                    "name": _user_display_name(record),
+                    "email": record.get("email"),
+                }
+            )
+
     return templates.TemplateResponse(
         "dashboard/admin.html",
         await build_context(
@@ -1660,6 +1677,8 @@ async def admin_dashboard(request: Request):
             users=users_list,
             doctors=doctors_verified,
             pending=pending_verification,
+            admins=sorted(admin_profiles, key=lambda item: ((item.get("name") or "").lower(), (item.get("email") or "").lower())),
+            is_super_admin=super_admin,
         ),
     )
 
@@ -1753,6 +1772,103 @@ async def api_assign_doctor_to_admin(request: Request, doctor_id: str):
     await db.users.update_one(
         {"_id": doctor_oid},
         {"$set": {"assigned_admin_id": str(user.get("_id")), "assigned_admin_name": _user_display_name(user)}},
+    )
+    return JSONResponse({"ok": True})
+
+
+@router.post("/api/admin/doctors/{doctor_id}/assign-to")
+async def api_assign_doctor_to_selected_admin(
+    request: Request,
+    doctor_id: str,
+    admin_id: str = Form(""),
+):
+    user = await get_user_from_request(request)
+    if not user or not _is_admin_user(user):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+    if not _is_super_admin_user(user):
+        return JSONResponse({"error": "Only info@physihome.shop can assign doctors to other admins"}, status_code=403)
+
+    db = get_database()
+    try:
+        doctor_oid = ObjectId(doctor_id)
+        admin_oid = ObjectId(str(admin_id))
+    except Exception:
+        return JSONResponse({"error": "Invalid doctor or admin"}, status_code=400)
+
+    doctor = await db.users.find_one({"_id": doctor_oid, "role": "doctor"})
+    admin = await db.users.find_one({"_id": admin_oid})
+    if not doctor:
+        return JSONResponse({"error": "Doctor not found"}, status_code=404)
+    if not _is_admin_user(admin):
+        return JSONResponse({"error": "Admin not found"}, status_code=404)
+
+    await db.users.update_one(
+        {"_id": doctor_oid},
+        {"$set": {"assigned_admin_id": str(admin.get("_id")), "assigned_admin_name": _user_display_name(admin)}},
+    )
+    return JSONResponse({"ok": True, "assigned_admin_id": str(admin.get("_id")), "assigned_admin_name": _user_display_name(admin)})
+
+
+@router.get("/api/admin/admins/{admin_id}/doctors")
+async def api_admin_assigned_doctors(request: Request, admin_id: str):
+    user = await get_user_from_request(request)
+    if not user or not _is_admin_user(user):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+    if not _is_super_admin_user(user):
+        return JSONResponse({"error": "Only info@physihome.shop can view admin doctor assignments"}, status_code=403)
+
+    db = get_database()
+    try:
+        admin_oid = ObjectId(admin_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid admin"}, status_code=400)
+
+    admin = await db.users.find_one({"_id": admin_oid})
+    if not _is_admin_user(admin):
+        return JSONResponse({"error": "Admin not found"}, status_code=404)
+
+    doctors = await db.users.find(
+        {"role": "doctor", "assigned_admin_id": str(admin_oid)},
+        {"first_name": 1, "last_name": 1, "email": 1, "specialization": 1},
+    ).sort("first_name", 1).to_list(length=200)
+    return JSONResponse(
+        {
+            "doctors": [
+                {
+                    "_id": str(d.get("_id")),
+                    "name": _user_display_name(d),
+                    "email": d.get("email"),
+                    "specialization": d.get("specialization") or "General",
+                }
+                for d in doctors
+            ]
+        }
+    )
+
+
+@router.post("/api/admin/admins/{admin_id}/doctors/{doctor_id}/remove")
+async def api_remove_doctor_from_admin(request: Request, admin_id: str, doctor_id: str):
+    user = await get_user_from_request(request)
+    if not user or not _is_admin_user(user):
+        return JSONResponse({"error": "Unauthorized"}, status_code=403)
+    if not _is_super_admin_user(user):
+        return JSONResponse({"error": "Only info@physihome.shop can update admin doctor assignments"}, status_code=403)
+
+    db = get_database()
+    try:
+        doctor_oid = ObjectId(doctor_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid doctor"}, status_code=400)
+
+    doctor = await db.users.find_one({"_id": doctor_oid, "role": "doctor"})
+    if not doctor:
+        return JSONResponse({"error": "Doctor not found"}, status_code=404)
+    if str(doctor.get("assigned_admin_id") or "") != str(admin_id):
+        return JSONResponse({"error": "Doctor is not assigned to this admin"}, status_code=400)
+
+    await db.users.update_one(
+        {"_id": doctor_oid},
+        {"$set": {"assigned_admin_id": "", "assigned_admin_name": ""}},
     )
     return JSONResponse({"ok": True})
 

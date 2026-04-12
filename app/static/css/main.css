@@ -1482,24 +1482,24 @@ textarea:focus {
 
 .message-row {
   display: flex;
-  justify-content: flex-start;
+  flex-direction: column;
   align-items: flex-start;
 }
 
 .message-row.me {
-  justify-content: flex-end;
+  align-items: flex-end;
 }
 
 .message-bubble {
-  display: inline-flex;
-  align-items: flex-start;
-  flex-direction: column;
-  max-width: 70%;
-  padding: 0.55rem 0.7rem;
+  display: inline-block;
+  max-width: min(75%, 28rem);
+  padding: 0.5rem 0.75rem;
   border-radius: 1rem;
   background: var(--card);
   border: 1px solid rgba(18, 18, 33, 0.08);
   box-shadow: 0 6px 18px rgba(18, 18, 33, 0.04);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .message-row.me .message-bubble {
@@ -1511,6 +1511,7 @@ textarea:focus {
   font-size: 0.92rem;
   line-height: 1.35;
   margin: 0;
+  display: block;
 }
 
 .message-status {

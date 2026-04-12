@@ -535,6 +535,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const res = await fetch("/api/messages/unread", {
           headers: { Accept: "application/json" },
+          cache: "no-store",
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -595,6 +596,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const res = await fetch("/api/messages/threads", {
           headers: { Accept: "application/json" },
+          cache: "no-store",
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -797,6 +799,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const res = await fetch(`/api/messages/${activeThreadId}/calendar`, {
           headers: { Accept: "application/json" },
+          cache: "no-store",
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -830,6 +833,7 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const res = await fetch(url.toString(), {
           headers: { Accept: "application/json" },
+          cache: "no-store",
         });
         if (!res.ok) return;
         const data = await res.json();
@@ -895,6 +899,22 @@ document.addEventListener("DOMContentLoaded", () => {
       loadCalendar();
       setInterval(loadCalendar, 15000);
     }
+
+    const refreshPresenceNow = () => {
+      pingPresence();
+      if (activeThreadId && messagesList) {
+        pollActiveConversation();
+      } else if (threadsList) {
+        refreshThreads();
+      }
+    };
+
+    window.addEventListener("focus", refreshPresenceNow);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        refreshPresenceNow();
+      }
+    });
 
     if (sendForm && activeThreadId && messagesList) {
       sendForm.addEventListener("submit", async (event) => {
@@ -1085,6 +1105,10 @@ document.addEventListener("DOMContentLoaded", () => {
     const roleDialog = document.getElementById("adminRoleDialog");
     const roleForm = roleDialog?.querySelector("[data-admin-role-form]");
     const assignInDetailsBtn = detailsDialog?.querySelector("[data-assign-doctor-modal]");
+    const assignDoctorSelect = detailsDialog?.querySelector("[data-assign-doctor-select]");
+    const assignDoctorToAdminBtn = detailsDialog?.querySelector("[data-assign-doctor-to-admin]");
+    const adminUserDetailsDialog = document.getElementById("adminUserDetailsDialog");
+    const adminUserDoctorsList = adminUserDetailsDialog?.querySelector("[data-admin-user-doctors-list]");
 
     const fillDetails = (menu) => {
       if (!detailsDialog) return;
@@ -1103,6 +1127,13 @@ document.addEventListener("DOMContentLoaded", () => {
         assignInDetailsBtn.dataset.assignDoctor = menu.dataset.doctorId || "";
         assignInDetailsBtn.hidden = Boolean(assignedAdminId);
         assignInDetailsBtn.disabled = false;
+      }
+      if (assignDoctorSelect) {
+        assignDoctorSelect.value = menu.dataset.doctorAssignedAdminId || "";
+      }
+      if (assignDoctorToAdminBtn) {
+        assignDoctorToAdminBtn.dataset.assignDoctor = menu.dataset.doctorId || "";
+        assignDoctorToAdminBtn.disabled = false;
       }
 
       const selfBtn = detailsDialog.querySelector('[data-admin-doc="self"]');
@@ -1148,6 +1179,72 @@ document.addEventListener("DOMContentLoaded", () => {
       roleDialog.showModal();
     };
 
+    const loadAdminDoctorAssignments = async (menu) => {
+      if (!adminUserDetailsDialog || !adminUserDoctorsList) return;
+      adminUserDetailsDialog.querySelector("[data-admin-user-details-title]").textContent = menu.dataset.userName || "Admin details";
+      adminUserDetailsDialog.querySelector("[data-admin-user-details-email]").textContent = menu.dataset.userEmail || "";
+      adminUserDoctorsList.innerHTML = '<p class="muted">Loading doctors...</p>';
+      adminUserDetailsDialog.showModal?.();
+      try {
+        const res = await fetch(`/api/admin/admins/${menu.dataset.userId}/doctors`, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          adminUserDoctorsList.innerHTML = `<p class="muted">${data.error || "Could not load doctors."}</p>`;
+          return;
+        }
+        const doctors = data.doctors || [];
+        if (!doctors.length) {
+          adminUserDoctorsList.innerHTML = '<p class="muted">No doctors assigned to this admin.</p>';
+          return;
+        }
+        adminUserDoctorsList.innerHTML = "";
+        doctors.forEach((doctor) => {
+          const row = document.createElement("div");
+          row.className = "card";
+          row.style.padding = "0.75rem";
+
+          const title = document.createElement("strong");
+          title.textContent = doctor.name;
+          const meta = document.createElement("p");
+          meta.className = "muted small";
+          meta.textContent = [doctor.email, doctor.specialization].filter(Boolean).join(" · ");
+          const action = document.createElement("button");
+          action.type = "button";
+          action.className = "btn secondary";
+          action.textContent = "Remove";
+          action.addEventListener("click", async () => {
+            action.disabled = true;
+            try {
+              const removeRes = await fetch(`/api/admin/admins/${menu.dataset.userId}/doctors/${doctor._id}/remove`, {
+                method: "POST",
+                headers: { Accept: "application/json" },
+              });
+              const removeData = await removeRes.json().catch(() => ({}));
+              if (!removeRes.ok) {
+                alert(removeData.error || "Could not remove doctor");
+                action.disabled = false;
+                return;
+              }
+              row.remove();
+              if (!adminUserDoctorsList.children.length) {
+                adminUserDoctorsList.innerHTML = '<p class="muted">No doctors assigned to this admin.</p>';
+              }
+            } catch {
+              alert("Could not remove doctor");
+              action.disabled = false;
+            }
+          });
+          row.append(title, meta, action);
+          adminUserDoctorsList.appendChild(row);
+        });
+      } catch {
+        adminUserDoctorsList.innerHTML = '<p class="muted">Could not load doctors.</p>';
+      }
+    };
+
     document.addEventListener("click", (event) => {
       const btn = event.target?.closest("[data-kebab-btn]");
       if (btn) {
@@ -1169,6 +1266,11 @@ document.addEventListener("DOMContentLoaded", () => {
       menu.querySelector("[data-admin-role]")?.addEventListener("click", () => {
         menu.setAttribute("hidden", "");
         openRoleDialog(menu);
+      });
+
+      menu.querySelector("[data-admin-user-view]")?.addEventListener("click", () => {
+        menu.setAttribute("hidden", "");
+        loadAdminDoctorAssignments(menu);
       });
 
       menu.querySelector("[data-admin-delete]")?.addEventListener("click", async () => {
@@ -1260,6 +1362,35 @@ document.addEventListener("DOMContentLoaded", () => {
         window.location.reload();
       } else {
         alert((await response.text()) || "Could not update role.");
+      }
+    });
+
+    assignDoctorToAdminBtn?.addEventListener("click", async () => {
+      const doctorId = assignDoctorToAdminBtn.dataset.assignDoctor;
+      const adminId = assignDoctorSelect?.value || "";
+      if (!doctorId || !adminId) {
+        alert("Select an admin first.");
+        return;
+      }
+      assignDoctorToAdminBtn.disabled = true;
+      const payload = new FormData();
+      payload.append("admin_id", adminId);
+      try {
+        const res = await fetch(`/api/admin/doctors/${doctorId}/assign-to`, {
+          method: "POST",
+          body: payload,
+          headers: { Accept: "application/json" },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.error || "Could not assign doctor");
+          assignDoctorToAdminBtn.disabled = false;
+          return;
+        }
+        window.location.reload();
+      } catch {
+        alert("Could not assign doctor");
+        assignDoctorToAdminBtn.disabled = false;
       }
     });
   };
@@ -1493,4 +1624,3 @@ document.addEventListener("DOMContentLoaded", () => {
   initAdminCalendar();
   initMessaging();
 });
-
