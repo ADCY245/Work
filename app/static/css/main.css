@@ -1367,12 +1367,12 @@ textarea:focus {
 
 /* Messages */
 .messages-board {
-  margin: 2rem auto;
-  width: min(100%, 1200px);
+  margin: 1rem auto;
+  width: min(100%, 1080px);
   background: var(--card);
-  padding: 2rem;
-  border-radius: 8px;
-  box-shadow: 0 20px 60px rgba(9, 12, 36, 0.08);
+  padding: 1rem;
+  border-radius: 1rem;
+  box-shadow: 0 12px 36px rgba(9, 12, 36, 0.06);
 }
 
 .messages-header {
@@ -1380,8 +1380,18 @@ textarea:focus {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.messages-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  line-height: 1.15;
+}
+
+.messages-header .muted {
+  margin-top: 0.15rem;
 }
 
 .threads {
@@ -1392,9 +1402,9 @@ textarea:focus {
 
 .messages-layout {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-  gap: 1rem;
-  align-items: stretch;
+  grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+  gap: 0.75rem;
+  align-items: start;
 }
 
 .messages-inbox,
@@ -1402,9 +1412,9 @@ textarea:focus {
 .calendar-sidebar,
 .calendar-panel {
   border: 1px solid rgba(18, 18, 33, 0.08);
-  border-radius: 8px;
+  border-radius: 1rem;
   background: #fff;
-  padding: 1rem;
+  padding: 0.9rem;
 }
 
 .messages-inbox,
@@ -1420,15 +1430,15 @@ textarea:focus {
 .threads-list {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
-  margin-top: 0.75rem;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
 }
 
 .thread-link {
   display: block;
-  padding: 0.75rem;
+  padding: 0.8rem 0.9rem;
   border: 1px solid rgba(18, 18, 33, 0.08);
-  border-radius: 8px;
+  border-radius: 0.9rem;
   background: #fff;
 }
 
@@ -1456,7 +1466,7 @@ textarea:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.6rem;
 }
 
 .conversation-heading {
@@ -1471,6 +1481,8 @@ textarea:focus {
 
 .conversation-toolbar {
   flex-wrap: wrap;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid rgba(18, 18, 33, 0.06);
 }
 
 .conversation-actions {
@@ -1493,26 +1505,26 @@ textarea:focus {
 }
 
 .messages-list {
-  margin-top: 0.75rem;
+  margin-top: 0.65rem;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
-  padding: 1rem;
+  gap: 0.35rem;
+  padding: 0.75rem;
   border: 1px solid rgba(18, 18, 33, 0.08);
-  border-radius: 1rem;
-  background: rgba(247, 249, 251, 0.6);
-  min-height: 460px;
-  max-height: 520px;
+  border-radius: 0.95rem;
+  background: #efeae2;
+  min-height: 320px;
+  max-height: 420px;
   overflow-y: auto;
   width: 100%;
   min-width: 0;
-  flex: 1 1 auto;
 }
 
 .message-row {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  gap: 0.15rem;
 }
 
 .message-row.me {
@@ -1521,33 +1533,34 @@ textarea:focus {
 
 .message-bubble {
   display: inline-block;
-  max-width: min(75%, 28rem);
-  padding: 0.5rem 0.75rem;
-  border-radius: 1rem;
-  background: var(--card);
-  border: 1px solid rgba(18, 18, 33, 0.08);
-  box-shadow: 0 6px 18px rgba(18, 18, 33, 0.04);
+  max-width: min(72%, 30rem);
+  padding: 0.45rem 0.7rem;
+  border-radius: 0.5rem 0.9rem 0.9rem 0.9rem;
+  background: #ffffff;
+  border: 1px solid rgba(18, 18, 33, 0.05);
+  box-shadow: 0 1px 2px rgba(18, 18, 33, 0.08);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .message-row.me .message-bubble {
-  background: var(--brand-soft);
-  border-color: rgba(34, 211, 238, 0.22);
+  background: #d9fdd3;
+  border-color: rgba(48, 144, 83, 0.12);
+  border-radius: 0.9rem 0.5rem 0.9rem 0.9rem;
 }
 
 .message-text {
-  font-size: 0.92rem;
-  line-height: 1.35;
+  font-size: 0.96rem;
+  line-height: 1.4;
   margin: 0;
   display: block;
 }
 
 .message-status {
-  margin-top: 0.2rem;
+  margin-top: 0;
   font-size: 0.72rem;
   color: var(--muted);
-  padding: 0 0.35rem;
+  padding: 0 0.15rem;
 }
 
 .message-row.me .message-status {
@@ -1562,9 +1575,9 @@ textarea:focus {
 }
 
 .message-form {
-  margin-top: 0.75rem;
+  margin-top: 0.65rem;
   display: flex;
-  gap: 0.5rem;
+  gap: 0.45rem;
   align-items: center;
   width: 100%;
 }
@@ -1573,11 +1586,15 @@ textarea:focus {
   flex: 1;
   min-width: 0;
   width: 100%;
-  min-height: 44px;
+  min-height: 42px;
+  border-radius: 999px;
+  padding-inline: 1rem;
 }
 
 .message-form .btn {
   flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.75rem 1.25rem;
 }
 
 .appointment-strip {
