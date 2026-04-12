@@ -74,10 +74,14 @@ ul {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
   font-weight: 700;
   letter-spacing: 0.02em;
   font-size: 1.25rem;
   color: var(--brand);
+  line-height: 1.2;
+  min-height: 36px;
 }
 
 .nav-links {
@@ -1364,6 +1368,7 @@ textarea:focus {
 /* Messages */
 .messages-board {
   margin: 2rem auto;
+  width: min(100%, 1200px);
   background: var(--card);
   padding: 2rem;
   border-radius: 8px;
@@ -1389,6 +1394,7 @@ textarea:focus {
   display: grid;
   grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
   gap: 1rem;
+  align-items: stretch;
 }
 
 .messages-inbox,
@@ -1399,6 +1405,11 @@ textarea:focus {
   border-radius: 8px;
   background: #fff;
   padding: 1rem;
+}
+
+.messages-inbox,
+.conversation-panel {
+  min-width: 0;
 }
 
 .messages-inbox h3,
@@ -1452,6 +1463,21 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.conversation-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.conversation-toolbar {
+  flex-wrap: wrap;
+}
+
+.conversation-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .presence-indicator {
   width: 0.65rem;
   height: 0.65rem;
@@ -1478,6 +1504,9 @@ textarea:focus {
   min-height: 460px;
   max-height: 520px;
   overflow-y: auto;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .message-row {
@@ -1537,12 +1566,18 @@ textarea:focus {
   display: flex;
   gap: 0.5rem;
   align-items: center;
+  width: 100%;
 }
 
 .message-form input {
   flex: 1;
   min-width: 0;
+  width: 100%;
   min-height: 44px;
+}
+
+.message-form .btn {
+  flex: 0 0 auto;
 }
 
 .appointment-strip {
