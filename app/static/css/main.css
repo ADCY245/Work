@@ -1695,6 +1695,117 @@ textarea:focus {
   gap: 1rem;
 }
 
+.admin-dashboard {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2.5rem;
+}
+
+.admin-dashboard .auth-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.admin-dashboard .auth-header p {
+  margin: 0.35rem 0;
+  color: var(--muted);
+}
+
+.admin-dashboard .tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  background: rgba(27, 36, 64, 0.05);
+  border: 1px solid rgba(27, 36, 64, 0.08);
+  margin: 0 auto 1.25rem;
+}
+
+.admin-dashboard .tab-btn {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.admin-dashboard .tab-btn.active {
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 8px 18px rgba(18, 18, 33, 0.08);
+}
+
+.admin-dashboard .tab-content h2 {
+  margin: 0.5rem 0 1rem;
+}
+
+.card-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.user-card {
+  border-radius: 1rem;
+  border: 1px solid rgba(27, 36, 64, 0.09);
+  box-shadow: 0 14px 32px rgba(18, 18, 33, 0.06);
+}
+
+.user-card header {
+  display: grid;
+  grid-template-columns: 52px 1fr auto;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.user-card header img {
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 2px solid rgba(34, 211, 238, 0.18);
+}
+
+.user-card header h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.user-card header p {
+  margin: 0.15rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  word-break: break-word;
+}
+
+.user-card p {
+  margin: 0.4rem 0;
+  color: var(--muted);
+}
+
+.calendar-layout {
+  align-items: start;
+}
+
+.calendar-layout > * {
+  border-radius: 1.25rem;
+  border: 1px solid rgba(27, 36, 64, 0.09);
+  box-shadow: 0 18px 44px rgba(18, 18, 33, 0.06);
+  background: #fff;
+}
+
+.calendar-layout > * {
+  padding: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .calendar-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
 .doctor-calendar-item {
   display: grid;
   gap: 0.15rem;
