@@ -1656,6 +1656,18 @@ textarea:focus {
   flex-wrap: wrap;
 }
 
+.appointment-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.appointment-actions .icon-btn {
+  white-space: nowrap;
+}
+
 .slot-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(94px, 1fr));

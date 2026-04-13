@@ -342,6 +342,15 @@ def _is_admin_user(user: dict | None) -> bool:
     return bool(email and email in set(_admin_emails()))
 
 
+def _is_physihome_info_admin(user: dict | None) -> bool:
+    if not user:
+        return False
+    email = str(user.get("email") or "").strip().lower()
+    if email not in {"info@physihome.com", "info@physihome.shop"}:
+        return False
+    return _is_admin_user(user)
+
+
 def _is_super_admin_user(user: dict | None) -> bool:
     if not user:
         return False
@@ -1337,6 +1346,7 @@ async def api_message_calendar(request: Request, thread_id: str):
             "doctor_name": _user_display_name(doctor),
             "patient_name": _user_display_name(patient),
             "can_propose": is_doctor,
+            "can_delete_appointments": _is_physihome_info_admin(user),
             "appointments": [_appointment_json(a, user_id) for a in appointments],
         }
     )
@@ -1521,6 +1531,67 @@ async def api_reschedule_appointment(request: Request, appointment_id: str, payl
     )
     updated = await db.appointments.find_one({"_id": appt_oid})
     return JSONResponse({"appointment": _appointment_json(updated, user_id)})
+
+
+@router.post("/api/appointments/{appointment_id}/reject")
+async def api_reject_appointment(request: Request, appointment_id: str):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    try:
+        appt_oid = ObjectId(appointment_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid appointment"}, status_code=400)
+
+    appt = await db.appointments.find_one({"_id": appt_oid})
+    if not appt:
+        return JSONResponse({"error": "Appointment not found"}, status_code=404)
+
+    doctor = await db.users.find_one({"_id": ObjectId(str(appt.get("doctor_id")))})
+    allowed = user_id in {str(appt.get("doctor_id")), str(appt.get("patient_id"))}
+    if not allowed and not (await _admin_can_manage_doctor(user, doctor)):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    if (appt.get("status") or "pending") == "booked":
+        return JSONResponse({"error": "Booked appointments cannot be rejected"}, status_code=409)
+
+    await db.appointments.update_one(
+        {"_id": appt_oid},
+        {
+            "$set": {
+                "status": "rejected",
+                "rejected_by": user_id,
+                "updated_at": datetime.utcnow(),
+            }
+        },
+    )
+    updated = await db.appointments.find_one({"_id": appt_oid})
+    return JSONResponse({"appointment": _appointment_json(updated, user_id)})
+
+
+@router.post("/api/appointments/{appointment_id}/delete")
+async def api_delete_appointment(request: Request, appointment_id: str):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+    if not _is_physihome_info_admin(user):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    db = get_database()
+    try:
+        appt_oid = ObjectId(appointment_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid appointment"}, status_code=400)
+
+    appt = await db.appointments.find_one({"_id": appt_oid})
+    if not appt:
+        return JSONResponse({"error": "Appointment not found"}, status_code=404)
+
+    await db.appointments.delete_one({"_id": appt_oid})
+    return JSONResponse({"ok": True})
 
 
 @router.post("/messages/{thread_id}/send")

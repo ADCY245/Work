@@ -788,7 +788,9 @@ document.addEventListener("DOMContentLoaded", () => {
         const approvals = document.createElement("span");
         approvals.className = "small";
         approvals.textContent = `${appointment.approvals_count}/2 approvals`;
-        footer.appendChild(approvals);
+        const actions = document.createElement("div");
+        actions.className = "appointment-actions";
+        footer.append(approvals, actions);
 
         if (!appointment.approved_by_me && appointment.status !== "booked") {
           const approve = document.createElement("button");
@@ -804,7 +806,23 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             await loadCalendar();
           });
-          footer.appendChild(approve);
+          actions.appendChild(approve);
+
+          const reject = document.createElement("button");
+          reject.className = "btn secondary";
+          reject.type = "button";
+          reject.textContent = "Reject";
+          reject.addEventListener("click", async () => {
+            if (!confirm("Reject this appointment request?")) return;
+            const res = await fetch(`/api/appointments/${appointment._id}/reject`, { method: "POST" });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              alert(data.error || "Could not reject appointment");
+              return;
+            }
+            await loadCalendar();
+          });
+          actions.appendChild(reject);
         }
 
         if (appointment.status !== "booked") {
@@ -815,7 +833,27 @@ document.addEventListener("DOMContentLoaded", () => {
           edit.setAttribute("aria-label", "Request change");
           edit.textContent = "Request change";
           edit.addEventListener("click", () => openAppointmentDialog(appointment));
-          footer.appendChild(edit);
+          actions.appendChild(edit);
+        }
+
+        if (calendarState?.can_delete_appointments) {
+          const del = document.createElement("button");
+          del.className = "icon-btn";
+          del.type = "button";
+          del.title = "Delete appointment";
+          del.setAttribute("aria-label", "Delete appointment");
+          del.textContent = "Delete";
+          del.addEventListener("click", async () => {
+            if (!confirm("Delete this appointment?")) return;
+            const res = await fetch(`/api/appointments/${appointment._id}/delete`, { method: "POST" });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              alert(data.error || "Could not delete appointment");
+              return;
+            }
+            await loadCalendar();
+          });
+          actions.appendChild(del);
         }
 
         card.append(header, meta, footer);
