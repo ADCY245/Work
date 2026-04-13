@@ -1226,10 +1226,18 @@ async def api_mark_read(request: Request, thread_id: str):
 
 
 @router.post("/api/messages/presence")
-async def api_message_presence(request: Request, thread_id: str | None = Form(None)):
+async def api_message_presence(request: Request):
     user = await get_user_from_request(request)
     if not user:
         return JSONResponse({"ok": False}, status_code=401)
+
+    thread_id = request.query_params.get("thread_id")
+    if not thread_id:
+        try:
+            form = await request.form()
+            thread_id = form.get("thread_id")
+        except Exception:
+            thread_id = None
 
     db = get_database()
     user_id = str(user.get("_id"))
@@ -1258,10 +1266,18 @@ async def api_message_presence(request: Request, thread_id: str | None = Form(No
 
 
 @router.post("/api/messages/presence/offline")
-async def api_message_presence_offline(request: Request, thread_id: str | None = Form(None)):
+async def api_message_presence_offline(request: Request):
     user = await get_user_from_request(request)
     if not user:
         return JSONResponse({"ok": False}, status_code=401)
+
+    thread_id = request.query_params.get("thread_id")
+    if not thread_id:
+        try:
+            form = await request.form()
+            thread_id = form.get("thread_id")
+        except Exception:
+            thread_id = None
 
     db = get_database()
     user_id = str(user.get("_id"))
