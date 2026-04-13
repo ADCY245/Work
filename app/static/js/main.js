@@ -2,21 +2,41 @@ document.addEventListener("DOMContentLoaded", () => {
   const initPresenceHeartbeat = () => {
     const authRoot = document.querySelector("[data-auth='true']");
     if (!authRoot) return;
+    const activeThreadId = document.querySelector("[data-conversation-panel]")?.dataset.activeThreadId || "";
 
     const ping = async () => {
+      const payload = new FormData();
+      if (activeThreadId) payload.append("thread_id", activeThreadId);
       try {
         await fetch("/api/messages/presence", {
           method: "POST",
           headers: { Accept: "application/json" },
-          body: new FormData(),
+          body: payload,
         });
       } catch {
         // ignore
       }
     };
 
+    const goOffline = () => {
+      const payload = new FormData();
+      if (activeThreadId) payload.append("thread_id", activeThreadId);
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon("/api/messages/presence/offline", payload);
+        return;
+      }
+      fetch("/api/messages/presence/offline", {
+        method: "POST",
+        body: payload,
+        keepalive: true,
+      }).catch(() => {
+        // ignore
+      });
+    };
+
     ping();
-    setInterval(ping, 20000);
+    setInterval(ping, 10000);
+    window.addEventListener("pagehide", goOffline);
   };
 
   const initDobFields = () => {
@@ -608,6 +628,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let lastSeen = null;
     const seen = new Set();
+    const emptyState = messagesList?.querySelector(".muted");
+
+    const messageKey = (messageLike) => messageLike?._id || messageLike?.created_at || null;
 
     const setOtherPresence = (isOnline) => {
       if (otherPresenceDot) {
@@ -641,8 +664,8 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     if (messagesList) {
-      messagesList.querySelectorAll("[data-created-at]").forEach((node) => {
-        const key = node.dataset.createdAt;
+      messagesList.querySelectorAll("[data-created-at], [data-message-id]").forEach((node) => {
+        const key = node.dataset.messageId || node.dataset.createdAt;
         if (key) seen.add(key);
       });
       updateSeenReceipts(otherLastReadAt);
@@ -651,13 +674,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const appendMessages = (msgs) => {
       if (!messagesList) return;
       msgs.forEach((m) => {
-        const seenKey = m.created_at || null;
+        const seenKey = messageKey(m);
         if (seenKey && seen.has(seenKey)) {
           return;
         }
 
+        emptyState?.remove();
+
         const row = document.createElement("div");
         row.className = m.is_me ? "message-row me" : "message-row";
+        if (m._id) row.dataset.messageId = m._id;
         if (m.created_at) row.dataset.createdAt = m.created_at;
 
         const bubble = document.createElement("div");
@@ -665,7 +691,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const text = document.createElement("p");
         text.className = "message-text";
-        text.textContent = m.text;
+        text.textContent = (m.text || "").trim();
         bubble.appendChild(text);
         row.appendChild(bubble);
         messagesList.appendChild(row);
@@ -881,12 +907,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     if (threadsList) {
       refreshThreads();
-      setInterval(refreshThreads, 10000);
+      setInterval(refreshThreads, 5000);
     }
     if (navBadge) {
-      setInterval(fetchUnread, 10000);
+      setInterval(fetchUnread, 5000);
     }
-    setInterval(pingPresence, 20000);
+    setInterval(pingPresence, 8000);
     if (activeThreadId && messagesList) {
       const existing = Array.from(
         messagesList.querySelectorAll("[data-created-at]")
@@ -895,7 +921,7 @@ document.addEventListener("DOMContentLoaded", () => {
         lastSeen = existing[existing.length - 1].dataset.createdAt || null;
       }
       markRead();
-      setInterval(pollActiveConversation, 5000);
+      setInterval(pollActiveConversation, 2500);
       loadCalendar();
       setInterval(loadCalendar, 15000);
     }
