@@ -1491,6 +1491,7 @@ textarea:focus {
 }
 
 .presence-indicator {
+  display: inline-block;
   width: 0.65rem;
   height: 0.65rem;
   border-radius: 999px;

@@ -137,6 +137,7 @@ def base_context(request: Request, **extra):
     context = {
         "request": request,
         "current_year": datetime.utcnow().year,
+        "static_version": datetime.utcnow().strftime("%Y%m%d%H%M%S"),
         "is_authenticated": extra.pop("is_authenticated", False),
         "show_messages": extra.pop("show_messages", False),
         "show_admin": extra.pop("show_admin", False),
