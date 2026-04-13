@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Messages | PhysiHome{% endblock %}
 {% block content %}
+<style>
+  main {
+    max-width: none;
+    width: 100%;
+    padding: 1rem clamp(1rem, 2vw, 2rem) 2rem;
+  }
+</style>
 <section class="messages-board">
   <div class="messages-header">
     <div>
