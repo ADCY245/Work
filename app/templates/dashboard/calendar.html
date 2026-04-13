@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Doctor Calendar | PhysiHome{% endblock %}
 {% block content %}
-<section class="admin-calendar" data-admin-calendar>
+<section class="admin-calendar" data-admin-calendar data-calendar-admin-id="{{ calendar_admin_id or '' }}" data-initial-doctor-id="{{ initial_doctor_id or '' }}">
   <header class="auth-header">
     <h1>Doctor Calendar</h1>
     <p>Manage appointments for doctors assigned to you.</p>

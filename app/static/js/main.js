@@ -1299,6 +1299,13 @@ document.addEventListener("DOMContentLoaded", () => {
           action.type = "button";
           action.className = "btn secondary";
           action.textContent = "Remove";
+
+          const openCalendar = document.createElement("a");
+          openCalendar.className = "btn secondary";
+          openCalendar.textContent = "Open calendar";
+          openCalendar.href = `/admin/calendar?admin_id=${encodeURIComponent(menu.dataset.userId)}&doctor_id=${encodeURIComponent(
+            doctor._id
+          )}`;
           action.addEventListener("click", async () => {
             action.disabled = true;
             try {
@@ -1321,7 +1328,7 @@ document.addEventListener("DOMContentLoaded", () => {
               action.disabled = false;
             }
           });
-          row.append(title, meta, action);
+          row.append(title, meta, openCalendar, action);
           adminUserDoctorsList.appendChild(row);
         });
       } catch {
@@ -1514,7 +1521,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const dialog = document.querySelector("[data-admin-appointment-dialog]");
     const form = document.querySelector("[data-admin-appointment-form]");
     const slotGrid = document.querySelector("[data-admin-slot-grid]");
-    let activeDoctorId = "";
+    let activeDoctorId = root.dataset.initialDoctorId || "";
+    const calendarAdminId = root.dataset.calendarAdminId || "";
     let currentAppointments = [];
 
     const slotLabel = (hour) => {
@@ -1585,13 +1593,37 @@ document.addEventListener("DOMContentLoaded", () => {
         details.className = "muted small";
         details.textContent = `${appointment.doctor_name} with ${appointment.patient_name} (${appointment.mode})`;
         const footer = document.createElement("footer");
+        const actions = document.createElement("div");
+        actions.className = "appointment-actions";
+
         const edit = document.createElement("button");
         edit.className = "icon-btn";
         edit.type = "button";
         edit.textContent = "Edit";
         edit.setAttribute("aria-label", "Change appointment");
         edit.addEventListener("click", () => openEdit(appointment));
-        footer.appendChild(edit);
+        actions.appendChild(edit);
+
+        if (root.dataset.canDeleteAppointments === "true") {
+          const del = document.createElement("button");
+          del.className = "icon-btn";
+          del.type = "button";
+          del.textContent = "Delete";
+          del.setAttribute("aria-label", "Delete appointment");
+          del.addEventListener("click", async () => {
+            if (!confirm("Delete this appointment?")) return;
+            const res = await fetch(`/api/appointments/${appointment._id}/delete`, { method: "POST" });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              alert(data.error || "Could not delete appointment");
+              return;
+            }
+            load();
+          });
+          actions.appendChild(del);
+        }
+
+        footer.appendChild(actions);
         card.append(header, details, footer);
         list.appendChild(card);
       });
@@ -1602,6 +1634,7 @@ document.addEventListener("DOMContentLoaded", () => {
       list.innerHTML = '<p class="muted">Loading appointments...</p>';
       const url = new URL("/api/admin/calendar", window.location.origin);
       if (activeDoctorId) url.searchParams.set("doctor_id", activeDoctorId);
+      if (calendarAdminId) url.searchParams.set("admin_id", calendarAdminId);
       try {
         const res = await fetch(url.toString(), { headers: { Accept: "application/json" } });
         const data = await res.json().catch(() => ({}));
@@ -1613,6 +1646,7 @@ document.addEventListener("DOMContentLoaded", () => {
           list.appendChild(error);
           return;
         }
+        root.dataset.canDeleteAppointments = data.can_delete_appointments ? "true" : "false";
         currentAppointments = data.appointments || [];
         render(currentAppointments);
       } catch {
@@ -1654,6 +1688,10 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("Could not change appointment");
       }
     });
+    if (activeDoctorId) {
+      const initialBtn = root.querySelector(`[data-admin-calendar-doctor="${CSS.escape(activeDoctorId)}"]`);
+      if (initialBtn && title) title.textContent = initialBtn.querySelector("strong")?.textContent || "Doctor appointments";
+    }
     load();
   };
 

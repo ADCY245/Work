@@ -1796,15 +1796,18 @@ async def admin_dashboard(request: Request):
 
 
 @router.get("/admin/calendar", response_class=HTMLResponse)
-async def admin_calendar(request: Request):
+async def admin_calendar(request: Request, admin_id: str | None = Query(None), doctor_id: str | None = Query(None)):
     user = await get_user_from_request(request)
     if not user or not _is_admin_user(user):
         return RedirectResponse(url="/login", status_code=303)
 
     db = get_database()
-    admin_id = str(user.get("_id"))
+    viewer_admin_id = str(user.get("_id"))
+    target_admin_id = viewer_admin_id
+    if admin_id and _is_super_admin_user(user):
+        target_admin_id = str(admin_id)
     doctors = await db.users.find(
-        {"role": "doctor", "doctor_verification_status": "verified", "assigned_admin_id": admin_id},
+        {"role": "doctor", "doctor_verification_status": "verified", "assigned_admin_id": target_admin_id},
         {"first_name": 1, "last_name": 1, "email": 1, "phone": 1, "specialization": 1},
     ).sort("first_name", 1).to_list(length=100)
     unassigned_count = await db.users.count_documents(
@@ -1829,19 +1832,25 @@ async def admin_calendar(request: Request):
                 for d in doctors
             ],
             unassigned_count=unassigned_count,
+            initial_doctor_id=str(doctor_id or ""),
+            calendar_admin_id=str(target_admin_id or ""),
         ),
     )
 
 
 @router.get("/api/admin/calendar")
-async def api_admin_calendar(request: Request, doctor_id: str | None = Query(None)):
+async def api_admin_calendar(request: Request, doctor_id: str | None = Query(None), admin_id: str | None = Query(None)):
     user = await get_user_from_request(request)
     if not user or not _is_admin_user(user):
         return JSONResponse({"error": "Unauthorized"}, status_code=403)
 
     db = get_database()
-    admin_id = str(user.get("_id"))
-    query = {"assigned_admin_id": admin_id, "role": "doctor"}
+    viewer_admin_id = str(user.get("_id"))
+    target_admin_id = viewer_admin_id
+    if admin_id and _is_super_admin_user(user):
+        target_admin_id = str(admin_id)
+
+    query = {"assigned_admin_id": target_admin_id, "role": "doctor"}
     if doctor_id:
         try:
             query["_id"] = ObjectId(doctor_id)
@@ -1857,7 +1866,9 @@ async def api_admin_calendar(request: Request, doctor_id: str | None = Query(Non
     return JSONResponse(
         {
             "doctors": [{"_id": str(d.get("_id")), "name": _user_display_name(d)} for d in doctors],
-            "appointments": [_appointment_json(a, admin_id) for a in appointments],
+            "appointments": [_appointment_json(a, viewer_admin_id) for a in appointments],
+            "can_delete_appointments": _is_physihome_info_admin(user),
+            "admin_id": target_admin_id,
         }
     )
 
