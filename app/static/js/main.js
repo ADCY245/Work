@@ -741,7 +741,7 @@ document.addEventListener("DOMContentLoaded", () => {
       appointmentForm.elements.appointment_id.value = appointment?._id || "";
       renderSlotGrid();
       if (appointmentTitle) {
-        appointmentTitle.textContent = appointment ? "Change appointment" : "Share appointment slot";
+        appointmentTitle.textContent = appointment ? "Request change" : "Share appointment slot";
       }
       if (appointmentSubmit) {
         appointmentSubmit.textContent = appointment ? "Request change" : "Share slot";
@@ -807,14 +807,16 @@ document.addEventListener("DOMContentLoaded", () => {
           footer.appendChild(approve);
         }
 
-        const edit = document.createElement("button");
-        edit.className = "icon-btn";
-        edit.type = "button";
-        edit.title = "Change appointment";
-        edit.setAttribute("aria-label", "Change appointment");
-        edit.textContent = "Edit";
-        edit.addEventListener("click", () => openAppointmentDialog(appointment));
-        footer.appendChild(edit);
+        if (appointment.status !== "booked") {
+          const edit = document.createElement("button");
+          edit.className = "icon-btn";
+          edit.type = "button";
+          edit.title = "Request change";
+          edit.setAttribute("aria-label", "Request change");
+          edit.textContent = "Request change";
+          edit.addEventListener("click", () => openAppointmentDialog(appointment));
+          footer.appendChild(edit);
+        }
 
         card.append(header, meta, footer);
         appointmentStrip.appendChild(card);
