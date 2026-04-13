@@ -1026,7 +1026,7 @@ async def message_thread(request: Request, thread_id: str):
     conversation_summary = await _build_thread_summary(db, convo, user_id, admin_ids, online_ids)
 
     doctor, patient = await _get_conversation_doctor_patient(db, convo)
-    calendar_supported = bool(doctor and patient and not _is_admin_user(patient))
+    calendar_supported = bool(doctor and patient)
     can_propose_calendar = bool(calendar_supported and str(doctor.get("_id")) == user_id)
     conversation = {
         "_id": str(convo_oid),
@@ -1315,7 +1315,7 @@ async def api_message_calendar(request: Request, thread_id: str):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
 
     doctor, patient = await _get_conversation_doctor_patient(db, convo)
-    if not doctor or not patient or _is_admin_user(patient):
+    if not doctor or not patient:
         return JSONResponse({"error": "Calendar is available for doctor-patient chats only"}, status_code=400)
 
     is_doctor = str(doctor.get("_id")) == user_id
@@ -1364,7 +1364,7 @@ async def api_propose_appointment(request: Request, thread_id: str, payload: dic
         return JSONResponse({"error": "Forbidden"}, status_code=403)
 
     doctor, patient = await _get_conversation_doctor_patient(db, convo)
-    if not doctor or not patient or _is_admin_user(patient) or str(doctor.get("_id")) != user_id:
+    if not doctor or not patient or str(doctor.get("_id")) != user_id:
         return JSONResponse({"error": "Doctor-patient conversation required"}, status_code=400)
 
     start_at, end_at, error = _parse_slot_payload(payload)
