@@ -1590,7 +1590,24 @@ async def api_delete_appointment(request: Request, appointment_id: str):
     if not appt:
         return JSONResponse({"error": "Appointment not found"}, status_code=404)
 
+    conversation_id = str(appt.get("conversation_id") or "")
+    now = datetime.utcnow()
     await db.appointments.delete_one({"_id": appt_oid})
+
+    if conversation_id:
+        await db.messages.insert_one(
+            {
+                "conversation_id": conversation_id,
+                "sender_id": str(user.get("_id")),
+                "ciphertext": _encrypt_text("Appointment has been deleted by SuperAdmin"),
+                "created_at": now,
+            }
+        )
+        try:
+            await db.conversations.update_one({"_id": ObjectId(conversation_id)}, {"$set": {"updated_at": now}})
+        except Exception:
+            pass
+
     return JSONResponse({"ok": True})
 
 
