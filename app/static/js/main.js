@@ -538,6 +538,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const otherPresenceLabel = document.querySelector("[data-other-presence-label]");
     let isSending = false;
     let calendarState = null;
+    let calendarDisabled = false;
     let otherLastReadAt = conversationPanel?.dataset.otherLastReadAt || null;
 
     const setBadge = (count) => {
@@ -822,6 +823,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const loadCalendar = async () => {
       if (!activeThreadId || !appointmentStrip) return;
+      if (calendarDisabled) return;
       try {
         const res = await fetch(`/api/messages/${activeThreadId}/calendar`, {
           headers: { Accept: "application/json" },
@@ -829,6 +831,11 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
+          if (res.status === 400 || res.status === 403) {
+            calendarDisabled = true;
+            calendarState = null;
+            appointmentStrip.hidden = true;
+          }
           if (openAppointmentBtn) openAppointmentBtn.hidden = true;
           return;
         }
