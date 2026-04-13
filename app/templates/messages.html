@@ -52,7 +52,7 @@
             </span>
           </div>
           <div class="conversation-actions">
-            {% if current_user and current_user.role == 'doctor' %}
+            {% if current_user and current_user.role == 'doctor' and conversation.calendar_supported and conversation.can_propose_calendar %}
             <button class="icon-btn" type="button" title="Share appointment slot" aria-label="Share appointment slot" data-open-appointment>Cal</button>
             {% endif %}
             <a class="btn secondary" href="/messages">Back</a>

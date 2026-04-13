@@ -1024,11 +1024,17 @@ async def message_thread(request: Request, thread_id: str):
         messages.append(_message_payload(msg, user_id, convo))
 
     conversation_summary = await _build_thread_summary(db, convo, user_id, admin_ids, online_ids)
+
+    doctor, patient = await _get_conversation_doctor_patient(db, convo)
+    calendar_supported = bool(doctor and patient and not _is_admin_user(patient))
+    can_propose_calendar = bool(calendar_supported and str(doctor.get("_id")) == user_id)
     conversation = {
         "_id": str(convo_oid),
         "title": conversation_summary.get("title") or "Conversation",
         "other_online": conversation_summary.get("other_online", False),
         "other_last_read_at": _iso(_other_last_read_at(convo, user_id)),
+        "calendar_supported": calendar_supported,
+        "can_propose_calendar": can_propose_calendar,
     }
     return templates.TemplateResponse(
         "messages.html",
