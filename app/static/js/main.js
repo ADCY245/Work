@@ -997,11 +997,22 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     }
 
-    openAppointmentBtn?.addEventListener("click", () => openAppointmentDialog());
+    openAppointmentBtn?.addEventListener("click", async () => {
+      await loadCalendar();
+      if (calendarDisabled || !calendarState || !calendarState.can_propose) {
+        alert("Doctor patient conversation required");
+        return;
+      }
+      openAppointmentDialog();
+    });
 
     appointmentForm?.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (!activeThreadId) return;
+      if (calendarDisabled || !calendarState || !calendarState.can_propose) {
+        alert("Doctor patient conversation required");
+        return;
+      }
       const slots = selectedSlots();
       const date = appointmentForm.elements.date.value;
       const mode = appointmentForm.elements.mode.value;
