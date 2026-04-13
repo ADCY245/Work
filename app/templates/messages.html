@@ -55,9 +55,9 @@
         <div class="messages-list" data-messages-list>
           {% for msg in messages %}
             {% if msg.is_me %}
-            <div class="message-row me" data-created-at="{{ msg.created_at }}">
+            <div class="message-row me" data-message-id="{{ msg._id }}" data-created-at="{{ msg.created_at }}">
             {% else %}
-            <div class="message-row" data-created-at="{{ msg.created_at }}">
+            <div class="message-row" data-message-id="{{ msg._id }}" data-created-at="{{ msg.created_at }}">
             {% endif %}
               <div class="message-bubble">
                 <p class="message-text">{{ msg.text }}</p>

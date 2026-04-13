@@ -62,7 +62,7 @@ class Settings(BaseSettings):
         alias="WA_MESSAGE_NOTIFY_DEBOUNCE_SECONDS",
     )
     message_presence_window_seconds: int = Field(
-        default=75,
+        default=20,
         alias="MESSAGE_PRESENCE_WINDOW_SECONDS",
     )
 

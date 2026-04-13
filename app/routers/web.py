@@ -187,12 +187,17 @@ def _iso(dt: datetime | None) -> str | None:
     return dt.isoformat() + "Z"
 
 
+def _utcnow_ms() -> datetime:
+    now = datetime.utcnow()
+    return now.replace(microsecond=(now.microsecond // 1000) * 1000)
+
+
 def _read_key(user_id: str) -> str:
     return f"last_read_at.{user_id}"
 
 
 def _presence_online_threshold() -> datetime:
-    seconds = int(getattr(settings, "message_presence_window_seconds", 75) or 75)
+    seconds = int(getattr(settings, "message_presence_window_seconds", 20) or 20)
     return datetime.utcnow() - timedelta(seconds=seconds)
 
 
@@ -264,6 +269,18 @@ async def _conversation_presence_payload(db, convo: dict, user_id: str) -> dict:
     return {
         "online_ids": online_ids,
         "other_online": bool(online_ids),
+    }
+
+
+def _message_payload(msg: dict, user_id: str, convo: dict) -> dict:
+    created_at = msg.get("created_at")
+    return {
+        "_id": str(msg.get("_id")) if msg.get("_id") is not None else "",
+        "sender_id": msg.get("sender_id"),
+        "text": (_decrypt_text(msg.get("ciphertext") or "") or "").strip() if "ciphertext" in msg else (msg.get("text") or "").strip(),
+        "created_at": _iso(created_at),
+        "is_me": msg.get("sender_id") == user_id,
+        "seen_by_other": _message_seen_by_others(convo, created_at, msg.get("sender_id")),
     }
 
 
@@ -1003,15 +1020,7 @@ async def message_thread(request: Request, thread_id: str):
     messages = []
     cursor_msgs = db.messages.find({"conversation_id": str(convo_oid)}).sort("created_at", 1)
     async for msg in cursor_msgs:
-        messages.append(
-            {
-                "sender_id": msg.get("sender_id"),
-                "text": _decrypt_text(msg.get("ciphertext") or ""),
-                "created_at": _iso(msg.get("created_at")),
-                "is_me": msg.get("sender_id") == user_id,
-                "seen_by_other": _message_seen_by_others(convo, msg.get("created_at"), msg.get("sender_id")),
-            }
-        )
+        messages.append(_message_payload(msg, user_id, convo))
 
     conversation_summary = await _build_thread_summary(db, convo, user_id, admin_ids, online_ids)
     conversation = {
@@ -1109,8 +1118,8 @@ async def api_send_message(request: Request, thread_id: str, text: str = Form(""
                 return JSONResponse(_restricted_access_error(), status_code=403)
             return JSONResponse({"error": "Forbidden"}, status_code=403)
 
-    now = datetime.utcnow()
-    await db.messages.insert_one(
+    now = _utcnow_ms()
+    insert_result = await db.messages.insert_one(
         {
             "conversation_id": str(convo_oid),
             "sender_id": user_id,
@@ -1125,6 +1134,7 @@ async def api_send_message(request: Request, thread_id: str, text: str = Form(""
     return JSONResponse(
         {
             "message": {
+                "_id": str(insert_result.inserted_id),
                 "sender_id": user_id,
                 "text": message,
                 "created_at": _iso(now),
@@ -1170,15 +1180,7 @@ async def api_messages_since(request: Request, thread_id: str, after: str | None
     messages = []
     cursor = db.messages.find(query).sort("created_at", 1)
     async for msg in cursor:
-        messages.append(
-            {
-                "sender_id": msg.get("sender_id"),
-                "text": _decrypt_text(msg.get("ciphertext") or ""),
-                "created_at": _iso(msg.get("created_at")),
-                "is_me": msg.get("sender_id") == user_id,
-                "seen_by_other": _message_seen_by_others(convo, msg.get("created_at"), msg.get("sender_id")),
-            }
-        )
+        messages.append(_message_payload(msg, user_id, convo))
 
     presence = await _conversation_presence_payload(db, convo, user_id)
     return JSONResponse(
@@ -1252,6 +1254,22 @@ async def api_message_presence(request: Request, thread_id: str | None = Form(No
             "other_last_read_at": _iso(_other_last_read_at(convo, user_id)),
         }
     )
+
+
+@router.post("/api/messages/presence/offline")
+async def api_message_presence_offline(request: Request, thread_id: str | None = Form(None)):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"ok": False}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    await db.user_presence.update_one(
+        {"user_id": user_id},
+        {"$set": {"updated_at": datetime.utcfromtimestamp(0), "active_thread_id": thread_id or ""}},
+        upsert=True,
+    )
+    return JSONResponse({"ok": True})
 
 
 @router.get("/api/messages/{thread_id}/calendar")
@@ -1522,7 +1540,7 @@ async def send_message(request: Request, thread_id: str, text: str = Form("")):
                 return RedirectResponse(url=f"/messages/{admin_thread}", status_code=303)
             return RedirectResponse(url="/messages", status_code=303)
 
-    now = datetime.utcnow()
+    now = _utcnow_ms()
     await db.messages.insert_one(
         {
             "conversation_id": str(convo_oid),
