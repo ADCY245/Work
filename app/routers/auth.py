@@ -213,7 +213,29 @@ async def _send_doctor_documents_email(email: str, attachments: list[tuple[str, 
         "A doctor completed OTP onboarding. Please review the attached documents.\n"
         f"Doctor email: {email}\n"
     )
-    admin_emails = sorted(set(str(e).strip().lower() for e in (settings.admin_emails or []) if e))
+
+    admin_emails: list[str] = []
+    try:
+        db = get_database()
+        admins = await db.users.find(
+            {
+                "$or": [
+                    {"is_admin": True},
+                    {"is_admin": {"$in": [1, "1", "true", "True", "TRUE"]}},
+                    {"role": {"$in": ["admin", "superadmin", "Admin", "SuperAdmin", "SUPERADMIN", "super_admin"]}},
+                ]
+            },
+            {"email": 1},
+        ).to_list(length=200)
+        admin_emails = [str(a.get("email") or "").strip().lower() for a in admins]
+        admin_emails = [e for e in admin_emails if e]
+    except Exception:
+        admin_emails = []
+
+    if not admin_emails:
+        admin_emails = [str(e).strip().lower() for e in (settings.admin_emails or []) if e]
+
+    admin_emails = sorted(set(admin_emails))
     if not admin_emails:
         return "Admin email not configured"
     try:
@@ -229,7 +251,6 @@ async def signup(
     first_name: str = Form(...),
     last_name: str = Form(...),
     dob: str = Form(""),
-    dob_backup: str = Form(""),
     phone: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
@@ -239,7 +260,7 @@ async def signup(
     db = get_database()
     normalized_email = _normalize_email(email)
     phone_clean = phone.strip()
-    dob_iso = _normalize_iso_date(dob) or _normalize_iso_date(dob_backup)
+    dob_iso = _normalize_iso_date(dob)
     if not dob_iso:
         return templates.TemplateResponse(
             "auth/signup.html",
@@ -359,7 +380,6 @@ async def doctor_signup(
     first_name: str = Form(...),
     last_name: str = Form(...),
     dob: str = Form(""),
-    dob_backup: str = Form(""),
     phone: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
@@ -375,7 +395,7 @@ async def doctor_signup(
     db = get_database()
     normalized_email = _normalize_email(email)
     phone_clean = phone.strip()
-    dob_iso = _normalize_iso_date(dob) or _normalize_iso_date(dob_backup)
+    dob_iso = _normalize_iso_date(dob)
     city_clean = city.strip()
     preferred_pin_clean = _normalize_pin(preferred_pin)
 

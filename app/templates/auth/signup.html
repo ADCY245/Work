@@ -39,27 +39,18 @@
       <label>
         Date of birth
         <div class="dob-input" data-dob-field>
-          <input 
-            type="date" 
-            name="dob_backup"
+          <input
+            type="text"
+            inputmode="numeric"
+            placeholder="DD-MM-YYYY"
+            aria-label="Type your date of birth as DD-MM-YYYY"
+            data-dob-text
+            name="dob"
             autocomplete="bday"
-            required 
-            pattern="\d{4}-\d{2}-\d{2}"
-            title="YYYY-MM-DD format"
+            required
           />
-          <input type="hidden" name="dob" data-dob-hidden />
-          <div class="dob-text-entry">
-            <input
-              type="text"
-              inputmode="numeric"
-              placeholder="DD-MM-YYYY"
-              aria-label="Type your date of birth as DD-MM-YYYY"
-              data-dob-text
-              name="dob_display"
-              autocomplete="bday"
-            />
-            <small class="helper">Type the date (DD-MM-YYYY) or use the picker.</small>
-          </div>
+          <button class="icon-btn" type="button" aria-label="Open calendar" data-dob-picker>&#128197;</button>
+          <input type="date" data-dob-picker-input tabindex="-1" />
         </div>
       </label>
       <label>

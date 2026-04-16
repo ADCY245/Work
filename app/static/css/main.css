@@ -905,6 +905,25 @@ a.btn {
   font-size: 0.9rem;
 }
 
+.dob-input {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.dob-input input[type="text"] {
+  width: 100%;
+}
+
+.dob-input [data-dob-picker-input] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 1px;
+  height: 1px;
+}
+
 .helper {
   font-size: 0.85rem;
   color: var(--muted);
@@ -1162,6 +1181,10 @@ textarea:focus {
   gap: 1.5rem;
 }
 
+.profile-card .auth-header {
+  margin-bottom: 0;
+}
+
 .profile-grid {
   display: grid;
   gap: 1rem;
@@ -1171,6 +1194,21 @@ textarea:focus {
 .profile-grid-header {
   display: flex;
   justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  main {
+    padding: 1.25rem 1rem 3rem;
+  }
+
+  .profile-card {
+    margin: 1rem auto;
+    padding: 1.25rem;
+  }
+
+  .profile-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .profile-grid .label {
@@ -2012,9 +2050,10 @@ textarea:focus {
 
 /* Profile page */
 .profile-card {
-  max-width: 780px;
+  max-width: 860px;
   margin: 2rem auto;
-  padding: 2.5rem;
+  display: grid;
+  gap: 1.5rem;
 }
 
 .profile-avatar {

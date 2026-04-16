@@ -86,24 +86,31 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     wrappers.forEach((wrapper) => {
-      const dateInput = wrapper.querySelector('input[type="date"]');
+      const dateInput = wrapper.querySelector("[data-dob-picker-input]");
+      const pickerBtn = wrapper.querySelector("[data-dob-picker]");
       const textInput = wrapper.querySelector("[data-dob-text]");
-      const hiddenInput = wrapper.querySelector("[data-dob-hidden]");
-      if (!dateInput || !textInput || !hiddenInput) return;
+      if (!dateInput || !textInput) return;
 
-      const syncText = () => {
-        if (dateInput.value) {
-          textInput.value = isoToDisplay(dateInput.value);
-          hiddenInput.value = dateInput.value;
-          wrapper.classList.add("filled");
-        } else {
-          hiddenInput.value = "";
-        }
+      const syncFromPicker = () => {
+        if (!dateInput.value) return;
+        textInput.value = isoToDisplay(dateInput.value);
+        textInput.setCustomValidity("");
+        wrapper.classList.add("filled");
       };
 
-      dateInput.addEventListener("change", () => {
-        syncText();
-        textInput.setCustomValidity("");
+      dateInput.addEventListener("change", syncFromPicker);
+
+      pickerBtn?.addEventListener("click", () => {
+        try {
+          if (typeof dateInput.showPicker === "function") {
+            dateInput.showPicker();
+          } else {
+            dateInput.focus();
+            dateInput.click();
+          }
+        } catch {
+          dateInput.focus();
+        }
       });
 
       textInput.addEventListener("input", () => {
@@ -111,7 +118,6 @@ document.addEventListener("DOMContentLoaded", () => {
         textInput.value = formatted;
         if (!formatted) {
           dateInput.value = "";
-          hiddenInput.value = "";
           textInput.setCustomValidity("");
           wrapper.classList.remove("filled");
           return;
@@ -119,14 +125,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (formatted.length === 10 && isValidDisplayDate(formatted)) {
           const iso = displayToIso(formatted);
           dateInput.value = iso;
-          hiddenInput.value = iso;
           textInput.setCustomValidity("");
           wrapper.classList.add("filled");
         } else if (formatted.length === 10) {
           textInput.setCustomValidity("Enter date as DD-MM-YYYY");
         } else {
           textInput.setCustomValidity("");
-          hiddenInput.value = "";
         }
       });
 
@@ -134,13 +138,16 @@ document.addEventListener("DOMContentLoaded", () => {
           const value = textInput.value.trim();
         if (isValidDisplayDate(value) || !value) {
           textInput.setCustomValidity("");
-          if (!value) {
-            hiddenInput.value = "";
-          }
+          if (!value) dateInput.value = "";
         }
       });
 
-      syncText();
+      if (textInput.value && isValidDisplayDate(textInput.value)) {
+        dateInput.value = displayToIso(textInput.value) || "";
+        wrapper.classList.add("filled");
+      } else if (dateInput.value) {
+        syncFromPicker();
+      }
     });
   };
 
