@@ -429,6 +429,17 @@ async def _auto_cancel_appointments(db, query: dict, reason: str = "expired") ->
         convo_id = str(appt.get("conversation_id") or "")
         if convo_id:
             await _insert_system_message(db, convo_id, "system", "Appointment has been cancelled")
+        try:
+            asyncio.create_task(
+                _notify_appointment_cancelled(
+                    db,
+                    appt,
+                    cancelled_by=None,
+                    cause=("cancelled due to non acceptance before expiry time" if reason == "expired" else reason),
+                )
+            )
+        except Exception:
+            pass
     return len(expired)
 
 
@@ -569,6 +580,53 @@ async def _notify_appointment_fixed(db, appt: dict) -> None:
             admin = None
         if admin and admin.get("phone"):
             recipients.append(admin.get("phone"))
+
+    for phone in recipients:
+        asyncio.create_task(send_whatsapp(phone, body))
+
+
+async def _notify_appointment_cancelled(
+    db,
+    appt: dict,
+    cancelled_by: dict | None,
+    cause: str,
+) -> None:
+    start_at = appt.get("start_at")
+    end_at = appt.get("end_at")
+    if not start_at or not end_at:
+        return
+
+    cancelled_by_label = "System"
+    if cancelled_by:
+        role = str(cancelled_by.get("role") or "").strip().lower()
+        if role == "doctor":
+            cancelled_by_label = _user_display_name(cancelled_by)
+        elif role in {"admin", "superadmin"} or _is_admin_user(cancelled_by):
+            cancelled_by_label = "Admin"
+        else:
+            cancelled_by_label = _user_display_name(cancelled_by)
+
+    cause_text = str(cause or "cancelled").strip()
+    body = (
+        "Appointment cancelled on PhysiHome: "
+        f"{_appointment_time_label(start_at, end_at)} "
+        f"({appt.get('mode', 'online')}). "
+        f"Doctor: {appt.get('doctor_name')}. Patient: {appt.get('patient_name')}. "
+        f"Cause: {cause_text}. Cancelled by: {cancelled_by_label}."
+    )
+
+    recipients: list[str] = []
+    for uid in [appt.get("doctor_id"), appt.get("patient_id")]:
+        try:
+            user = await db.users.find_one({"_id": ObjectId(str(uid))})
+        except Exception:
+            user = None
+        if not user:
+            continue
+        if user.get("whatsapp_notifications_enabled") is False:
+            continue
+        if user.get("phone"):
+            recipients.append(user.get("phone"))
 
     for phone in recipients:
         asyncio.create_task(send_whatsapp(phone, body))
@@ -1661,6 +1719,24 @@ async def api_reject_appointment(request: Request, appointment_id: str):
         await _insert_system_message(db, conversation_id, user_id, "Appointment has been cancelled")
 
     updated = await db.appointments.find_one({"_id": appt_oid})
+    try:
+        role = str(user.get("role") or "").strip().lower()
+        if _is_admin_user(user):
+            cause = "cancelled by admin"
+        elif role == "doctor":
+            cause = "cancelled by doctor"
+        else:
+            cause = "cancelled by patient"
+        asyncio.create_task(
+            _notify_appointment_cancelled(
+                db,
+                updated or appt,
+                cancelled_by=user,
+                cause=cause,
+            )
+        )
+    except Exception:
+        pass
     return JSONResponse({"appointment": _appointment_json(updated, user_id)})
 
 
@@ -1684,6 +1760,19 @@ async def api_delete_appointment(request: Request, appointment_id: str):
 
     conversation_id = str(appt.get("conversation_id") or "")
     now = datetime.utcnow()
+
+    try:
+        asyncio.create_task(
+            _notify_appointment_cancelled(
+                db,
+                appt,
+                cancelled_by=user,
+                cause="cancelled by admin",
+            )
+        )
+    except Exception:
+        pass
+
     await db.appointments.delete_one({"_id": appt_oid})
 
     if conversation_id:
