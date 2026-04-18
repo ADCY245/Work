@@ -1,4 +1,28 @@
 document.addEventListener("DOMContentLoaded", () => {
+  const IST_OFFSET_MINUTES = 330;
+
+  const nowIst = () => {
+    const now = new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+    return new Date(utcMs + IST_OFFSET_MINUTES * 60000);
+  };
+
+  const istDateFromYmdHour = (ymd, hour) => {
+    if (!ymd) return null;
+    const parts = String(ymd).split("-").map((n) => Number(n));
+    if (parts.length !== 3) return null;
+    const [y, m, d] = parts;
+    if (!y || !m || !d) return null;
+    const utcMs = Date.UTC(y, m - 1, d, Number(hour || 0), 0, 0, 0);
+    return new Date(utcMs + IST_OFFSET_MINUTES * 60000);
+  };
+
+  const ymdFromIstDate = (d) => {
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(d.getUTCDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
   const initPresenceHeartbeat = () => {
     const authRoot = document.querySelector("[data-auth='true']");
     if (!authRoot) return;
@@ -733,13 +757,29 @@ document.addEventListener("DOMContentLoaded", () => {
     const renderSlotGrid = () => {
       if (!slotGrid) return;
       slotGrid.innerHTML = "";
+      const selectedDate = appointmentForm?.elements?.date?.value || "";
+      const now = nowIst();
+      const cutoff = new Date(now.getTime() + 30 * 60000);
+      const todayYmd = ymdFromIstDate(now);
       for (let hour = 7; hour <= 21; hour += 1) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "slot-chip";
         btn.dataset.slotHour = String(hour);
         btn.textContent = slotLabel(hour);
+        const slotStart = istDateFromYmdHour(selectedDate, hour);
+        const isPastDay = selectedDate && selectedDate < todayYmd;
+        const isTodayOrPast = selectedDate && selectedDate <= todayYmd;
+        const isTooSoon =
+          Boolean(selectedDate) &&
+          isTodayOrPast &&
+          slotStart &&
+          slotStart.getTime() <= cutoff.getTime();
+        if (isPastDay || isTooSoon) {
+          btn.disabled = true;
+        }
         btn.addEventListener("click", () => {
+          if (btn.disabled) return;
           btn.classList.toggle("selected");
         });
         slotGrid.appendChild(btn);
@@ -773,8 +813,13 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         appointmentForm.elements.date.value = new Date().toISOString().slice(0, 10);
       }
+      renderSlotGrid();
       appointmentDialog.showModal?.();
     };
+
+    appointmentForm?.elements?.date?.addEventListener("change", () => {
+      renderSlotGrid();
+    });
 
     const renderAppointments = (appointments) => {
       if (!appointmentStrip) return;
@@ -1554,13 +1599,31 @@ document.addEventListener("DOMContentLoaded", () => {
     const renderSlots = () => {
       if (!slotGrid) return;
       slotGrid.innerHTML = "";
+      const selectedDate = form?.elements?.date?.value || "";
+      const now = nowIst();
+      const cutoff = new Date(now.getTime() + 30 * 60000);
+      const todayYmd = ymdFromIstDate(now);
       for (let hour = 7; hour <= 21; hour += 1) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "slot-chip";
         btn.dataset.slotHour = String(hour);
         btn.textContent = slotLabel(hour);
-        btn.addEventListener("click", () => btn.classList.toggle("selected"));
+        const slotStart = istDateFromYmdHour(selectedDate, hour);
+        const isPastDay = selectedDate && selectedDate < todayYmd;
+        const isTodayOrPast = selectedDate && selectedDate <= todayYmd;
+        const isTooSoon =
+          Boolean(selectedDate) &&
+          isTodayOrPast &&
+          slotStart &&
+          slotStart.getTime() <= cutoff.getTime();
+        if (isPastDay || isTooSoon) {
+          btn.disabled = true;
+        }
+        btn.addEventListener("click", () => {
+          if (btn.disabled) return;
+          btn.classList.toggle("selected");
+        });
         slotGrid.appendChild(btn);
       }
     };
@@ -1584,6 +1647,10 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       dialog.showModal?.();
     };
+
+    form?.elements?.date?.addEventListener("change", () => {
+      renderSlots();
+    });
 
     const render = (appointments) => {
       if (!list) return;
