@@ -1,27 +1,24 @@
 document.addEventListener("DOMContentLoaded", () => {
   const IST_OFFSET_MINUTES = 330;
+  const IST_OFFSET_MS = IST_OFFSET_MINUTES * 60000;
 
-  const nowIst = () => {
-    const now = new Date();
-    const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-    return new Date(utcMs + IST_OFFSET_MINUTES * 60000);
-  };
+  const nowIstMs = () => Date.now() + IST_OFFSET_MS;
 
-  const istDateFromYmdHour = (ymd, hour) => {
-    if (!ymd) return null;
-    const parts = String(ymd).split("-").map((n) => Number(n));
-    if (parts.length !== 3) return null;
-    const [y, m, d] = parts;
-    if (!y || !m || !d) return null;
-    const utcMs = Date.UTC(y, m - 1, d, Number(hour || 0), 0, 0, 0);
-    return new Date(utcMs + IST_OFFSET_MINUTES * 60000);
-  };
-
-  const ymdFromIstDate = (d) => {
+  const ymdFromIstMs = (ms) => {
+    const d = new Date(ms);
     const y = d.getUTCFullYear();
     const m = String(d.getUTCMonth() + 1).padStart(2, "0");
     const day = String(d.getUTCDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
+  };
+
+  const istSlotStartMs = (ymd, hour) => {
+    if (!ymd) return NaN;
+    const parts = String(ymd).split("-").map((n) => Number(n));
+    if (parts.length !== 3) return NaN;
+    const [y, m, d] = parts;
+    if (!y || !m || !d) return NaN;
+    return Date.UTC(y, m - 1, d, Number(hour || 0), 0, 0, 0);
   };
 
   const normalizeYmd = (value) => {
@@ -770,23 +767,23 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!slotGrid) return;
       slotGrid.innerHTML = "";
       const selectedDate = normalizeYmd(appointmentForm?.elements?.date?.value || "");
-      const now = nowIst();
-      const cutoff = new Date(now.getTime() + 30 * 60000);
-      const todayYmd = ymdFromIstDate(now);
+      const nowMs = nowIstMs();
+      const cutoffMs = nowMs + 30 * 60000;
+      const todayYmd = ymdFromIstMs(nowMs);
       for (let hour = 7; hour <= 21; hour += 1) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "slot-chip";
         btn.dataset.slotHour = String(hour);
         btn.textContent = slotLabel(hour);
-        const slotStart = istDateFromYmdHour(selectedDate, hour);
+        const slotStartMs = istSlotStartMs(selectedDate, hour);
         const isPastDay = selectedDate && selectedDate < todayYmd;
         const isTodayOrPast = selectedDate && selectedDate <= todayYmd;
         const isTooSoon =
           Boolean(selectedDate) &&
           isTodayOrPast &&
-          slotStart &&
-          slotStart.getTime() <= cutoff.getTime();
+          Number.isFinite(slotStartMs) &&
+          slotStartMs <= cutoffMs;
         if (!selectedDate || isPastDay || isTooSoon) {
           btn.disabled = true;
         }
@@ -1617,23 +1614,23 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!slotGrid) return;
       slotGrid.innerHTML = "";
       const selectedDate = normalizeYmd(form?.elements?.date?.value || "");
-      const now = nowIst();
-      const cutoff = new Date(now.getTime() + 30 * 60000);
-      const todayYmd = ymdFromIstDate(now);
+      const nowMs = nowIstMs();
+      const cutoffMs = nowMs + 30 * 60000;
+      const todayYmd = ymdFromIstMs(nowMs);
       for (let hour = 7; hour <= 21; hour += 1) {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "slot-chip";
         btn.dataset.slotHour = String(hour);
         btn.textContent = slotLabel(hour);
-        const slotStart = istDateFromYmdHour(selectedDate, hour);
+        const slotStartMs = istSlotStartMs(selectedDate, hour);
         const isPastDay = selectedDate && selectedDate < todayYmd;
         const isTodayOrPast = selectedDate && selectedDate <= todayYmd;
         const isTooSoon =
           Boolean(selectedDate) &&
           isTodayOrPast &&
-          slotStart &&
-          slotStart.getTime() <= cutoff.getTime();
+          Number.isFinite(slotStartMs) &&
+          slotStartMs <= cutoffMs;
         if (!selectedDate || isPastDay || isTooSoon) {
           btn.disabled = true;
         }
