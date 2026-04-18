@@ -1744,9 +1744,24 @@ textarea:focus {
   margin-bottom: 1.5rem;
 }
 
+.admin-dashboard .auth-header .btn {
+  min-width: 220px;
+}
+
+.admin-dashboard .auth-header p:last-child {
+  margin-top: 0.9rem;
+}
+
 .admin-dashboard .auth-header p {
   margin: 0.35rem 0;
   color: var(--muted);
+}
+
+.admin-dashboard .auth-header p .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }
 
 .admin-dashboard .tabs {
@@ -1757,6 +1772,27 @@ textarea:focus {
   background: rgba(27, 36, 64, 0.05);
   border: 1px solid rgba(27, 36, 64, 0.08);
   margin: 0 auto 1.25rem;
+}
+
+.admin-dashboard .tab-btn {
+  transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.admin-dashboard .tab-btn:hover {
+  color: var(--text);
+}
+
+@media (max-width: 720px) {
+  .admin-dashboard .tabs {
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: 1rem;
+  }
+
+  .admin-dashboard .auth-header .btn {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 .admin-dashboard .tab-btn {

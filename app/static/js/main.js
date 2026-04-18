@@ -647,6 +647,15 @@ document.addEventListener("DOMContentLoaded", () => {
       if (otherPresenceLabel) {
         otherPresenceLabel.textContent = isOnline ? "Online" : "Offline";
       }
+
+      if (threadsList && activeThreadId) {
+        const threadLink = threadsList.querySelector(`[data-thread-id="${CSS.escape(activeThreadId)}"]`);
+        const dot = threadLink?.querySelector(".presence-indicator");
+        if (dot) {
+          dot.classList.toggle("online", Boolean(isOnline));
+          dot.setAttribute("aria-label", isOnline ? "Online" : "Offline");
+        }
+      }
     };
 
     const updateSeenReceipts = (cutoff) => {
@@ -838,7 +847,7 @@ document.addEventListener("DOMContentLoaded", () => {
           edit.type = "button";
           edit.title = "Request change";
           edit.setAttribute("aria-label", "Request change");
-          edit.textContent = "Request change";
+          edit.innerHTML = "&#9998;";
           edit.addEventListener("click", () => openAppointmentDialog(appointment));
           actions.appendChild(edit);
         }
