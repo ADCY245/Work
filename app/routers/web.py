@@ -372,6 +372,66 @@ def _appointment_time_label(start_at: datetime, end_at: datetime) -> str:
     return f"{start} - {end}"
 
 
+_IST_OFFSET = timedelta(hours=5, minutes=30)
+
+
+def _now_ist() -> datetime:
+    return datetime.utcnow() + _IST_OFFSET
+
+
+async def _insert_system_message(db, conversation_id: str, sender_id: str, text: str) -> None:
+    convo_id = str(conversation_id or "").strip()
+    if not convo_id:
+        return
+    now = datetime.utcnow()
+    await db.messages.insert_one(
+        {
+            "conversation_id": convo_id,
+            "sender_id": str(sender_id or "system"),
+            "ciphertext": _encrypt_text(text),
+            "created_at": now,
+        }
+    )
+    try:
+        await db.conversations.update_one({"_id": ObjectId(convo_id)}, {"$set": {"updated_at": now}})
+    except Exception:
+        pass
+
+
+async def _auto_cancel_appointments(db, query: dict, reason: str = "expired") -> int:
+    now_ist = _now_ist()
+    cutoff = now_ist + timedelta(minutes=30)
+    expired = await db.appointments.find(
+        {
+            **query,
+            "status": {"$in": ["pending", "change_requested"]},
+            "start_at": {"$lte": cutoff},
+        }
+    ).to_list(length=200)
+    if not expired:
+        return 0
+
+    now = datetime.utcnow()
+    ids = [e.get("_id") for e in expired if e.get("_id")]
+    if ids:
+        await db.appointments.update_many(
+            {"_id": {"$in": ids}},
+            {
+                "$set": {
+                    "status": "cancelled",
+                    "cancelled_reason": reason,
+                    "cancelled_at": now,
+                    "updated_at": now,
+                }
+            },
+        )
+    for appt in expired:
+        convo_id = str(appt.get("conversation_id") or "")
+        if convo_id:
+            await _insert_system_message(db, convo_id, "system", "Appointment has been cancelled")
+    return len(expired)
+
+
 def _parse_slot_payload(payload: dict) -> tuple[datetime | None, datetime | None, str | None]:
     date_raw = str(payload.get("date") or "").strip()
     slots_raw = payload.get("slots") or []
@@ -1332,6 +1392,8 @@ async def api_message_calendar(request: Request, thread_id: str):
     if not (is_doctor or is_patient):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
 
+    await _auto_cancel_appointments(db, {"conversation_id": str(convo_oid)})
+
     appointments = await db.appointments.find(
         {
             "conversation_id": str(convo_oid),
@@ -1380,6 +1442,10 @@ async def api_propose_appointment(request: Request, thread_id: str, payload: dic
     start_at, end_at, error = _parse_slot_payload(payload)
     if error:
         return JSONResponse({"error": error}, status_code=400)
+
+    now_ist = _now_ist()
+    if not start_at or start_at <= (now_ist + timedelta(minutes=30)):
+        return JSONResponse({"error": "Select a slot at least 30 minutes from now"}, status_code=400)
 
     overlap = await db.appointments.find_one(
         {
@@ -1443,6 +1509,27 @@ async def api_approve_appointment(request: Request, appointment_id: str):
         return JSONResponse({"error": "Appointment not found"}, status_code=404)
     if user_id not in {str(appt.get("doctor_id")), str(appt.get("patient_id"))}:
         return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    status_now = str(appt.get("status") or "pending")
+    if status_now in {"pending", "change_requested"}:
+        start_at = appt.get("start_at")
+        if start_at and start_at <= (_now_ist() + timedelta(minutes=30)):
+            now = datetime.utcnow()
+            await db.appointments.update_one(
+                {"_id": appt_oid},
+                {
+                    "$set": {
+                        "status": "cancelled",
+                        "cancelled_reason": "expired",
+                        "cancelled_at": now,
+                        "updated_at": now,
+                    }
+                },
+            )
+            conversation_id = str(appt.get("conversation_id") or "")
+            if conversation_id:
+                await _insert_system_message(db, conversation_id, "system", "Appointment has been cancelled")
+            return JSONResponse({"error": "Appointment request expired"}, status_code=409)
 
     approvals = appt.get("approvals") or {}
     approvals[user_id] = True
@@ -1568,6 +1655,11 @@ async def api_reject_appointment(request: Request, appointment_id: str):
             }
         },
     )
+
+    conversation_id = str(appt.get("conversation_id") or "")
+    if conversation_id:
+        await _insert_system_message(db, conversation_id, user_id, "Appointment has been cancelled")
+
     updated = await db.appointments.find_one({"_id": appt_oid})
     return JSONResponse({"appointment": _appointment_json(updated, user_id)})
 
@@ -1877,6 +1969,7 @@ async def api_admin_calendar(request: Request, doctor_id: str | None = Query(Non
     doctor_ids = [str(d.get("_id")) for d in doctors]
     appointments = []
     if doctor_ids:
+        await _auto_cancel_appointments(db, {"doctor_id": {"$in": doctor_ids}})
         appointments = await db.appointments.find(
             {"doctor_id": {"$in": doctor_ids}, "status": {"$in": ["pending", "booked", "change_requested"]}}
         ).sort("start_at", 1).to_list(length=200)
