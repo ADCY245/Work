@@ -23,6 +23,18 @@ document.addEventListener("DOMContentLoaded", () => {
     const day = String(d.getUTCDate()).padStart(2, "0");
     return `${y}-${m}-${day}`;
   };
+
+  const normalizeYmd = (value) => {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const m = raw.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+    if (m) {
+      const [, dd, mm, yyyy] = m;
+      return `${yyyy}-${mm}-${dd}`;
+    }
+    return raw;
+  };
   const initPresenceHeartbeat = () => {
     const authRoot = document.querySelector("[data-auth='true']");
     if (!authRoot) return;
@@ -757,7 +769,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const renderSlotGrid = () => {
       if (!slotGrid) return;
       slotGrid.innerHTML = "";
-      const selectedDate = appointmentForm?.elements?.date?.value || "";
+      const selectedDate = normalizeYmd(appointmentForm?.elements?.date?.value || "");
       const now = nowIst();
       const cutoff = new Date(now.getTime() + 30 * 60000);
       const todayYmd = ymdFromIstDate(now);
@@ -775,7 +787,7 @@ document.addEventListener("DOMContentLoaded", () => {
           isTodayOrPast &&
           slotStart &&
           slotStart.getTime() <= cutoff.getTime();
-        if (isPastDay || isTooSoon) {
+        if (!selectedDate || isPastDay || isTooSoon) {
           btn.disabled = true;
         }
         btn.addEventListener("click", () => {
@@ -1115,7 +1127,7 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
       }
       const slots = selectedSlots();
-      const date = appointmentForm.elements.date.value;
+      const date = normalizeYmd(appointmentForm.elements.date.value);
       const mode = appointmentForm.elements.mode.value;
       const appointmentId = appointmentForm.elements.appointment_id.value;
       const payload = { date, mode, slots };
@@ -1130,6 +1142,11 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
+          const err = String(data.error || "");
+          if (err.toLowerCase().includes("30 minutes")) {
+            renderSlotGrid();
+            return;
+          }
           alert(data.error || "Could not save appointment");
           return;
         }
@@ -1599,7 +1616,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const renderSlots = () => {
       if (!slotGrid) return;
       slotGrid.innerHTML = "";
-      const selectedDate = form?.elements?.date?.value || "";
+      const selectedDate = normalizeYmd(form?.elements?.date?.value || "");
       const now = nowIst();
       const cutoff = new Date(now.getTime() + 30 * 60000);
       const todayYmd = ymdFromIstDate(now);
@@ -1617,7 +1634,7 @@ document.addEventListener("DOMContentLoaded", () => {
           isTodayOrPast &&
           slotStart &&
           slotStart.getTime() <= cutoff.getTime();
-        if (isPastDay || isTooSoon) {
+        if (!selectedDate || isPastDay || isTooSoon) {
           btn.disabled = true;
         }
         btn.addEventListener("click", () => {
