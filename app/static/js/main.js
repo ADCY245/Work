@@ -403,10 +403,10 @@ document.addEventListener("DOMContentLoaded", () => {
     pointerTarget?.addEventListener("pointerup", clearPointer);
     pointerTarget?.addEventListener("pointercancel", clearPointer);
 
-    document.querySelectorAll("[data-zoom-src]").forEach((element) => {
-      element.addEventListener("click", () => {
-        open(element.dataset.zoomSrc, element.dataset.zoomLabel);
-      });
+    document.addEventListener("click", (event) => {
+      const target = event.target?.closest?.("[data-zoom-src]");
+      if (!target) return;
+      open(target.dataset.zoomSrc, target.dataset.zoomLabel);
     });
   };
 
@@ -1269,6 +1269,51 @@ document.addEventListener("DOMContentLoaded", () => {
     const adminUserDetailsDialog = document.getElementById("adminUserDetailsDialog");
     const adminUserDoctorsList = adminUserDetailsDialog?.querySelector("[data-admin-user-doctors-list]");
 
+    const getDetailsPanel = (scope) =>
+      document.querySelector(`[data-admin-details-panel][data-admin-details-scope="${scope}"]`);
+
+    const fillDoctorPanel = (panel, menu) => {
+      if (!panel) return;
+      panel.hidden = false;
+      panel.querySelector("[data-admin-details-title]").textContent = menu.dataset.doctorName || "Doctor details";
+      panel.querySelector("[data-admin-details-email]").textContent = menu.dataset.doctorEmail || "";
+      panel.querySelector("[data-admin-details-phone]").textContent = menu.dataset.doctorPhone || "";
+      panel.querySelector("[data-admin-details-specialization]").textContent = menu.dataset.doctorSpecialization || "";
+      panel.querySelector("[data-admin-details-license]").textContent = menu.dataset.doctorLicense || "";
+      panel.querySelector("[data-admin-details-city]").textContent = menu.dataset.doctorCity || "";
+      panel.querySelector("[data-admin-details-pin]").textContent = menu.dataset.doctorPin || "";
+      const assigned = panel.querySelector("[data-admin-details-assigned-admin]");
+      if (assigned) assigned.textContent = menu.dataset.doctorAssignedAdminName || "Unassigned";
+      panel.querySelector("[data-admin-details-description]").textContent = (menu.dataset.doctorDescription || "").trim() || "No description";
+
+      const setDoc = (btn, src) => {
+        const img = btn?.querySelector("img");
+        if (!btn || !img) return;
+        if (src) {
+          img.src = src;
+          btn.hidden = false;
+          btn.dataset.zoomSrc = src;
+        } else {
+          btn.hidden = true;
+          delete btn.dataset.zoomSrc;
+        }
+      };
+      setDoc(panel.querySelector('[data-admin-doc="self"]'), menu.dataset.selfPhoto);
+      setDoc(panel.querySelector('[data-admin-doc="degree"]'), menu.dataset.degreePhoto);
+      setDoc(panel.querySelector('[data-admin-doc="visiting"]'), menu.dataset.visitingCard);
+    };
+
+    const fillUserPanel = (panel, menu) => {
+      if (!panel) return;
+      panel.hidden = false;
+      panel.querySelector("[data-admin-details-name]").textContent = menu.dataset.userName || "User details";
+      panel.querySelector("[data-admin-details-user-email]").textContent = menu.dataset.userEmail || "";
+      panel.querySelector("[data-admin-details-user-phone]").textContent = menu.dataset.userPhone || "";
+      panel.querySelector("[data-admin-details-user-role]").textContent = menu.dataset.userRole || "";
+      panel.querySelector("[data-admin-details-user-gender]").textContent = menu.dataset.userGender || "";
+      panel.querySelector("[data-admin-details-user-status]").textContent = menu.dataset.userStatus || "";
+    };
+
     const fillDetails = (menu) => {
       if (!detailsDialog) return;
       detailsDialog.querySelector("[data-admin-details-title]").textContent = menu.dataset.doctorName || "Doctor details";
@@ -1436,6 +1481,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
       menu.querySelector("[data-admin-user-view]")?.addEventListener("click", () => {
         menu.setAttribute("hidden", "");
+        const panel = getDetailsPanel("user");
+        if (panel) {
+          fillUserPanel(panel, menu);
+          return;
+        }
         loadAdminDoctorAssignments(menu);
       });
 
@@ -1454,6 +1504,14 @@ document.addEventListener("DOMContentLoaded", () => {
       });
 
       menu.querySelector("[data-admin-view]")?.addEventListener("click", () => {
+        const parentPanel = menu.closest("[data-tab-panel]");
+        const scope = parentPanel?.dataset.tabPanel === "pending" ? "pending" : "doctor";
+        const panel = getDetailsPanel(scope);
+        if (panel) {
+          fillDoctorPanel(panel, menu);
+          menu.setAttribute("hidden", "");
+          return;
+        }
         fillDetails(menu);
         detailsDialog?.showModal?.();
         menu.setAttribute("hidden", "");
@@ -1558,6 +1616,28 @@ document.addEventListener("DOMContentLoaded", () => {
         alert("Could not assign doctor");
         assignDoctorToAdminBtn.disabled = false;
       }
+    });
+
+    document.querySelectorAll(".admin-split-list .user-card").forEach((card) => {
+      card.addEventListener("click", (event) => {
+        if (event.target?.closest("button") || event.target?.closest("a")) return;
+        const menu = card.querySelector("[data-kebab-menu]");
+        if (!menu) return;
+        const parentPanel = card.closest("[data-tab-panel]");
+        const scope =
+          parentPanel?.dataset.tabPanel === "users"
+            ? "user"
+            : parentPanel?.dataset.tabPanel === "pending"
+              ? "pending"
+              : "doctor";
+        const panel = getDetailsPanel(scope);
+        if (!panel) return;
+        if (scope === "user") {
+          fillUserPanel(panel, menu);
+          return;
+        }
+        fillDoctorPanel(panel, menu);
+      });
     });
   };
 

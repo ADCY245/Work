@@ -16,14 +16,15 @@
 
   <div id="users" class="tab-content active" data-tab-panel="users">
     <h2>All Users</h2>
-    <div class="card-list">
+    <div class="admin-split">
+      <div class="admin-split-list">
+        <div class="card-list">
       {% for u in users %}
       <article class="card user-card">
         <header>
           <img src="{{ u.avatar_url }}" alt="{{ u.name }}" />
           <div>
             <h3>{{ u.name }}</h3>
-            <p>{{ u.email }}</p>
           </div>
           <div class="kebab">
             <button class="kebab-btn" type="button" aria-label="User actions" data-kebab-btn>...</button>
@@ -32,10 +33,11 @@
               data-user-name="{{ u.name }}"
               data-user-email="{{ u.email }}"
               data-user-role="{{ u.role }}"
+              data-user-phone="{{ u.phone or '' }}"
+              data-user-gender="{{ u.gender or '' }}"
+              data-user-status="{{ u.doctor_verification_status or '' }}"
             >
-              {% if is_super_admin and u.role == 'admin' %}
               <button class="kebab-item" type="button" data-admin-user-view>View details</button>
-              {% endif %}
               <button class="kebab-item" type="button" data-admin-role>Change role</button>
               <button class="kebab-item" type="button" data-admin-delete>Remove user</button>
             </div>
@@ -53,19 +55,34 @@
       {% if users|length == 0 %}
       <p class="muted">No users yet.</p>
       {% endif %}
+        </div>
+      </div>
+      <aside class="admin-split-details" data-admin-details-panel data-admin-details-scope="user" hidden>
+        <div class="card admin-details-card">
+          <h3 data-admin-details-name>User details</h3>
+          <div class="admin-details-grid">
+            <p><strong>Email:</strong> <span data-admin-details-user-email></span></p>
+            <p><strong>Phone:</strong> <span data-admin-details-user-phone></span></p>
+            <p><strong>Role:</strong> <span data-admin-details-user-role></span></p>
+            <p><strong>Gender:</strong> <span data-admin-details-user-gender></span></p>
+            <p><strong>Status:</strong> <span data-admin-details-user-status></span></p>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 
   <div id="doctors" class="tab-content" data-tab-panel="doctors">
     <h2>Verified Doctors</h2>
-    <div class="card-list">
+    <div class="admin-split">
+      <div class="admin-split-list">
+        <div class="card-list">
       {% for d in doctors %}
       <article class="card user-card">
         <header>
           <img src="{{ d.avatar_url }}" alt="{{ d.name }}" />
           <div>
             <h3>{{ d.name }}</h3>
-            <p>{{ d.email }}</p>
           </div>
           <div class="kebab">
             <button class="kebab-btn" type="button" aria-label="Doctor actions" data-kebab-btn>...</button>
@@ -99,19 +116,43 @@
       {% if doctors|length == 0 %}
       <p class="muted">No verified doctors yet.</p>
       {% endif %}
+        </div>
+      </div>
+      <aside class="admin-split-details" data-admin-details-panel data-admin-details-scope="doctor" hidden>
+        <div class="card admin-details-card">
+          <h3 data-admin-details-title>Doctor details</h3>
+          <div class="admin-details-grid" style="text-align:left;">
+            <p><strong>Email:</strong> <span data-admin-details-email></span></p>
+            <p><strong>Phone:</strong> <span data-admin-details-phone></span></p>
+            <p><strong>Specialization:</strong> <span data-admin-details-specialization></span></p>
+            <p><strong>License:</strong> <span data-admin-details-license></span></p>
+            <p><strong>City:</strong> <span data-admin-details-city></span></p>
+            <p><strong>Preferred PIN:</strong> <span data-admin-details-pin></span></p>
+            <p><strong>Assigned admin:</strong> <span data-admin-details-assigned-admin></span></p>
+            <p><strong>Description:</strong></p>
+            <p class="muted" data-admin-details-description></p>
+          </div>
+          <div class="documents" style="margin:0;">
+            <button class="doc-thumb" type="button" data-admin-doc="self" data-zoom-label="Self Photo" hidden><img alt="Self photo" /></button>
+            <button class="doc-thumb" type="button" data-admin-doc="degree" data-zoom-label="Degree" hidden><img alt="Degree" /></button>
+            <button class="doc-thumb" type="button" data-admin-doc="visiting" data-zoom-label="Visiting card" hidden><img alt="Visiting card" /></button>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 
   <div id="pending" class="tab-content" data-tab-panel="pending">
     <h2>Pending Verification</h2>
-    <div class="card-list">
+    <div class="admin-split">
+      <div class="admin-split-list">
+        <div class="card-list">
       {% for p in pending %}
       <article class="card user-card">
         <header>
           <img src="{{ p.avatar_url }}" alt="{{ p.name }}" />
           <div>
             <h3>{{ p.name }}</h3>
-            <p>{{ p.email }}</p>
           </div>
           <div class="kebab">
             <button class="kebab-btn" type="button" aria-label="Doctor actions" data-kebab-btn>...</button>
@@ -137,40 +178,33 @@
           </div>
         </header>
         <p>Status: {{ p.doctor_verification_status }}</p>
-        <div class="documents">
-          {% if p.self_photo_url %}
-          <div>
-            <h4>Self Photo</h4>
-            <button class="doc-thumb" type="button" data-zoom-src="{{ p.self_photo_url }}" data-zoom-label="Self Photo">
-              <img src="{{ p.self_photo_url }}" alt="Self Photo" />
-              <span class="doc-thumb-action">Zoom</span>
-            </button>
-          </div>
-          {% endif %}
-          {% if p.degree_photo_url %}
-          <div>
-            <h4>Degree</h4>
-            <button class="doc-thumb" type="button" data-zoom-src="{{ p.degree_photo_url }}" data-zoom-label="Degree certificate">
-              <img src="{{ p.degree_photo_url }}" alt="Degree" />
-              <span class="doc-thumb-action">Zoom</span>
-            </button>
-          </div>
-          {% endif %}
-          {% if p.visiting_card_url %}
-          <div>
-            <h4>Visiting Card</h4>
-            <button class="doc-thumb" type="button" data-zoom-src="{{ p.visiting_card_url }}" data-zoom-label="Visiting card">
-              <img src="{{ p.visiting_card_url }}" alt="Visiting Card" />
-              <span class="doc-thumb-action">Zoom</span>
-            </button>
-          </div>
-          {% endif %}
-        </div>
       </article>
       {% endfor %}
       {% if pending|length == 0 %}
       <p class="muted">No pending requests.</p>
       {% endif %}
+        </div>
+      </div>
+      <aside class="admin-split-details" data-admin-details-panel data-admin-details-scope="pending" hidden>
+        <div class="card admin-details-card">
+          <h3 data-admin-details-title>Doctor details</h3>
+          <div class="admin-details-grid" style="text-align:left;">
+            <p><strong>Email:</strong> <span data-admin-details-email></span></p>
+            <p><strong>Phone:</strong> <span data-admin-details-phone></span></p>
+            <p><strong>Specialization:</strong> <span data-admin-details-specialization></span></p>
+            <p><strong>License:</strong> <span data-admin-details-license></span></p>
+            <p><strong>City:</strong> <span data-admin-details-city></span></p>
+            <p><strong>Preferred PIN:</strong> <span data-admin-details-pin></span></p>
+            <p><strong>Description:</strong></p>
+            <p class="muted" data-admin-details-description></p>
+          </div>
+          <div class="documents" style="margin:0;">
+            <button class="doc-thumb" type="button" data-admin-doc="self" data-zoom-label="Self Photo" hidden><img alt="Self photo" /></button>
+            <button class="doc-thumb" type="button" data-admin-doc="degree" data-zoom-label="Degree" hidden><img alt="Degree" /></button>
+            <button class="doc-thumb" type="button" data-admin-doc="visiting" data-zoom-label="Visiting card" hidden><img alt="Visiting card" /></button>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 </section>
