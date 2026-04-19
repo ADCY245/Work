@@ -1274,7 +1274,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const fillDoctorPanel = (panel, menu) => {
       if (!panel) return;
-      panel.hidden = false;
+      const nextId = menu.dataset.doctorId || "";
+      if (nextId && panel.dataset.selectedId === nextId && !panel.hasAttribute("hidden")) {
+        return;
+      }
+      if (nextId) panel.dataset.selectedId = nextId;
+      panel.removeAttribute("hidden");
       panel.querySelector("[data-admin-details-title]").textContent = menu.dataset.doctorName || "Doctor details";
       panel.querySelector("[data-admin-details-email]").textContent = menu.dataset.doctorEmail || "";
       panel.querySelector("[data-admin-details-phone]").textContent = menu.dataset.doctorPhone || "";
@@ -1305,7 +1310,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const fillUserPanel = (panel, menu) => {
       if (!panel) return;
-      panel.hidden = false;
+      const nextId = menu.dataset.userId || "";
+      if (nextId && panel.dataset.selectedId === nextId && !panel.hasAttribute("hidden")) {
+        return;
+      }
+      if (nextId) panel.dataset.selectedId = nextId;
+      panel.removeAttribute("hidden");
       panel.querySelector("[data-admin-details-name]").textContent = menu.dataset.userName || "User details";
       panel.querySelector("[data-admin-details-user-email]").textContent = menu.dataset.userEmail || "";
       panel.querySelector("[data-admin-details-user-phone]").textContent = menu.dataset.userPhone || "";
