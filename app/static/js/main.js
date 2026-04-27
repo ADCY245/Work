@@ -531,13 +531,17 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   };
 
-  window.togglePassword = (input) => {
+  window.togglePassword = (button) => {
+    const input = button.previousElementSibling;
     const type = input.type === "password" ? "text" : "password";
     input.type = type;
-    const button = input.nextElementSibling;
-    if (button && button.tagName === "BUTTON") {
-      button.textContent = type === "password" ? "Show" : "Hide";
+    const eyeOpen = button.querySelector(".eye-open");
+    const eyeSlash = button.querySelector(".eye-slash");
+    if (eyeOpen && eyeSlash) {
+      eyeOpen.style.display = type === "password" ? "block" : "none";
+      eyeSlash.style.display = type === "password" ? "none" : "block";
     }
+    button.setAttribute("aria-label", type === "password" ? "Show password" : "Hide password");
   };
 
   const initLicenseRequiredPrompt = () => {
