@@ -15,6 +15,7 @@ class Settings(BaseSettings):
 
     # Security / JWT
     secret_key: str = Field("CHANGE_ME", alias="SECRET_KEY")
+    jwt_secret: str | None = Field(default=None, alias="JWT_SECRET")
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
     session_cookie_name: str = "physihome_session"
@@ -64,6 +65,10 @@ class Settings(BaseSettings):
     message_presence_window_seconds: int = Field(
         default=20,
         alias="MESSAGE_PRESENCE_WINDOW_SECONDS",
+    )
+    video_call_api_url: str = Field(
+        default="http://localhost:4000",
+        alias="VIDEO_CALL_API_URL",
     )
 
     @model_validator(mode="after")

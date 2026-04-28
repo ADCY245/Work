@@ -43,6 +43,14 @@
 
     <div class="conversation-panel" data-conversation-panel data-active-thread-id="{{ conversation._id if conversation else '' }}" data-other-last-read-at="{{ conversation.other_last_read_at if conversation else '' }}">
       {% if conversation %}
+        <div
+          data-video-call-context
+          data-conversation-id="{{ conversation._id }}"
+          data-video-supported="{{ 'true' if conversation.video_supported else 'false' }}"
+          data-doctor-id="{{ conversation.doctor_id or '' }}"
+          data-patient-id="{{ conversation.patient_id or '' }}"
+          data-admin-id="{{ conversation.admin_id or '' }}"
+        ></div>
         <div class="conversation-toolbar">
           <div class="conversation-heading">
             <h3>{{ conversation.title or 'Conversation' }}</h3>
@@ -52,6 +60,9 @@
             </span>
           </div>
           <div class="conversation-actions">
+            {% if conversation.video_supported %}
+            <button class="icon-btn video-call-btn" type="button" title="Start video call" aria-label="Start video call" data-start-video-call>&#127909;</button>
+            {% endif %}
             {% if current_user and current_user.role == 'doctor' and conversation.calendar_supported and conversation.can_propose_calendar %}
             <button class="icon-btn" type="button" title="Share appointment slot" aria-label="Share appointment slot" data-open-appointment>&#128197;</button>
             {% endif %}

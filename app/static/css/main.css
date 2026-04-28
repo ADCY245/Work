@@ -1249,6 +1249,12 @@ textarea:focus {
   color: var(--brand);
 }
 
+.video-call-btn {
+  background: #e8fff1;
+  border-color: #b9f0cc;
+  color: #126b32;
+}
+
 .doc-grid {
   display: grid;
   gap: 1rem;
@@ -1704,6 +1710,54 @@ textarea:focus {
 
 .appointment-actions .icon-btn {
   white-space: nowrap;
+}
+
+.incoming-call-card {
+  align-items: center;
+  max-width: 380px;
+  text-align: center;
+}
+
+.incoming-call-avatar {
+  display: grid;
+  width: 72px;
+  height: 72px;
+  place-items: center;
+  border-radius: 50%;
+  background: #e8fff1;
+  color: #126b32;
+  font-size: 2rem;
+  box-shadow: 0 12px 28px rgba(18, 107, 50, 0.18);
+}
+
+.admin-meetings-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 1rem;
+  margin: 0 0 1.25rem;
+}
+
+.admin-meetings-filters label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+
+.meetings-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.meeting-card {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.meeting-card footer {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .slot-grid {
@@ -2276,7 +2330,8 @@ textarea:focus {
   }
 
   .messages-layout,
-  .calendar-layout {
+  .calendar-layout,
+  .meetings-columns {
     grid-template-columns: 1fr;
   }
 

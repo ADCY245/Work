@@ -564,6 +564,299 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   };
 
+  const initVideoCalling = () => {
+    const authRoot = document.querySelector("[data-auth='true']");
+    if (!authRoot) return;
+
+    const main = document.querySelector("main");
+    const apiBase = (main?.dataset.videoCallApiUrl || "http://localhost:4000").replace(/\/$/, "");
+    const callContext = document.querySelector("[data-video-call-context]");
+    const startCallBtn = document.querySelector("[data-start-video-call]");
+    const incomingDialog = document.querySelector("[data-incoming-call-dialog]");
+    const incomingTitle = document.querySelector("[data-incoming-call-title]");
+    const incomingCopy = document.querySelector("[data-incoming-call-copy]");
+    const joinIncomingBtn = document.querySelector("[data-join-incoming-call]");
+    const ignoreIncomingBtn = document.querySelector("[data-ignore-incoming-call]");
+    const adminMeetingsPanel = document.querySelector("[data-admin-meetings-panel]");
+    const adminMeetingsForm = document.querySelector("[data-admin-meetings-filters]");
+
+    let authState = null;
+    let tokenPromise = null;
+    let socket = null;
+    let pendingIncomingMeeting = null;
+    let zoomLoading = null;
+
+    const loadScript = (src) =>
+      new Promise((resolve, reject) => {
+        const existing = document.querySelector(`script[src="${src}"]`);
+        if (existing) {
+          existing.addEventListener("load", resolve, { once: true });
+          if (existing.dataset.loaded === "true") resolve();
+          return;
+        }
+        const script = document.createElement("script");
+        script.src = src;
+        script.async = true;
+        script.onload = () => {
+          script.dataset.loaded = "true";
+          resolve();
+        };
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+
+    const loadStyle = (href) => {
+      if (document.querySelector(`link[href="${href}"]`)) return;
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      document.head.appendChild(link);
+    };
+
+    const getVideoToken = async () => {
+      if (authState?.token && Date.parse(authState.expires_at || "") > Date.now() + 60000) {
+        return authState;
+      }
+      if (!tokenPromise) {
+        tokenPromise = fetch("/api/video/token", {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        })
+          .then(async (res) => {
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Could not start video service");
+            authState = data;
+            return data;
+          })
+          .finally(() => {
+            tokenPromise = null;
+          });
+      }
+      return tokenPromise;
+    };
+
+    const apiFetch = async (path, options = {}) => {
+      const state = await getVideoToken();
+      const headers = new Headers(options.headers || {});
+      headers.set("Authorization", `Bearer ${state.token}`);
+      headers.set("Accept", "application/json");
+      if (options.body && !headers.has("Content-Type") && !(options.body instanceof FormData)) {
+        headers.set("Content-Type", "application/json");
+      }
+      return fetch(`${apiBase}${path}`, { ...options, headers });
+    };
+
+    const ensureSocket = async () => {
+      if (socket?.connected) return socket;
+      const state = await getVideoToken();
+      await loadScript(`${apiBase}/socket.io/socket.io.js`);
+      if (!window.io) throw new Error("Socket.IO client unavailable");
+      socket = window.io(apiBase, {
+        transports: ["websocket", "polling"],
+        auth: { token: state.token },
+      });
+      socket.on("connect", () => {
+        socket.emit("subscribe", { userId: state.user?._id });
+      });
+      socket.on("incoming-call", (meeting) => {
+        if (String(meeting.callerId || "") === String(state.user?._id || "")) return;
+        showIncomingCall(meeting, state.user);
+      });
+      socket.on("call-ended", (payload) => {
+        if (pendingIncomingMeeting?.meetingId === payload.meetingId) {
+          incomingDialog?.close?.();
+          pendingIncomingMeeting = null;
+        }
+        loadAdminMeetings();
+      });
+      return socket;
+    };
+
+    const ensureZoomSdk = async (sdkVersion) => {
+      if (window.ZoomMtg) return;
+      if (!zoomLoading) {
+        const version = sdkVersion || "3.13.2";
+        loadStyle(`https://source.zoom.us/${version}/css/bootstrap.css`);
+        loadStyle(`https://source.zoom.us/${version}/css/react-select.css`);
+        zoomLoading = loadScript(`https://source.zoom.us/${version}/zoom-meeting-${version}.min.js`).then(() => {
+          if (!window.ZoomMtg) throw new Error("Zoom Meeting SDK did not load");
+          window.ZoomMtg.setZoomJSLib(`https://source.zoom.us/${version}/lib`, "/av");
+          window.ZoomMtg.preLoadWasm();
+          window.ZoomMtg.prepareWebSDK();
+          window.ZoomMtg.i18n.load("en-US");
+          window.ZoomMtg.i18n.reload("en-US");
+        });
+      }
+      return zoomLoading;
+    };
+
+    const joinMeeting = async (meeting, requestedRole = 0) => {
+      const meetingNumber = meeting.meetingNumber || meeting.meetingId;
+      const res = await apiFetch("/api/zoom/signature", {
+        method: "POST",
+        body: JSON.stringify({ meetingNumber, role: requestedRole }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.error || "Could not join video call");
+        return;
+      }
+      await ensureZoomSdk(data.sdkVersion);
+      const leaveUrl = data.leaveUrl || window.location.pathname || "/dashboard";
+      window.ZoomMtg.init({
+        leaveUrl,
+        patchJsMedia: true,
+        success: () => {
+          window.ZoomMtg.join({
+            meetingNumber: data.meetingNumber,
+            userName: data.userName,
+            userEmail: data.userEmail,
+            signature: data.signature,
+            sdkKey: data.sdkKey,
+            passWord: data.passWord || "",
+            success: () => {
+              incomingDialog?.close?.();
+              pendingIncomingMeeting = null;
+            },
+            error: (error) => {
+              console.error(error);
+              alert("Zoom could not join this call");
+            },
+          });
+        },
+        error: (error) => {
+          console.error(error);
+          alert("Zoom could not open inside the page");
+        },
+      });
+    };
+
+    const showIncomingCall = (meeting, user) => {
+      pendingIncomingMeeting = meeting;
+      const adminRecipient = String(meeting.adminId || "") === String(user?._id || "");
+      if (incomingTitle) {
+        incomingTitle.textContent = adminRecipient ? "Doctor started a meeting" : "Incoming Video Call";
+      }
+      if (incomingCopy) {
+        incomingCopy.textContent = adminRecipient
+          ? "A doctor assigned to you started a video call."
+          : `${meeting.callerName || "Your care team"} is calling.`;
+      }
+      if (joinIncomingBtn) {
+        joinIncomingBtn.textContent = adminRecipient ? "Join as Admin" : "Join Now";
+      }
+      incomingDialog?.showModal?.();
+      loadAdminMeetings();
+    };
+
+    startCallBtn?.addEventListener("click", async () => {
+      if (!callContext || callContext.dataset.videoSupported !== "true") {
+        alert("Video calls are available for doctor-patient chats only");
+        return;
+      }
+      startCallBtn.disabled = true;
+      try {
+        await ensureSocket();
+        const res = await apiFetch("/api/meetings/create", {
+          method: "POST",
+          body: JSON.stringify({ conversationId: callContext.dataset.conversationId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          alert(data.error || "Could not start video call");
+          return;
+        }
+        const state = await getVideoToken();
+        const role = String(state.user?._id || "") === String(data.meeting?.doctorId || "") ? 1 : 0;
+        await joinMeeting(data.meeting, role);
+      } catch (error) {
+        console.error(error);
+        alert("Could not start video call");
+      } finally {
+        startCallBtn.disabled = false;
+      }
+    });
+
+    joinIncomingBtn?.addEventListener("click", async () => {
+      if (!pendingIncomingMeeting) return;
+      await joinMeeting(pendingIncomingMeeting, 0);
+    });
+
+    ignoreIncomingBtn?.addEventListener("click", () => {
+      pendingIncomingMeeting = null;
+      incomingDialog?.close?.();
+    });
+
+    const renderMeetingList = (container, meetings, emptyText) => {
+      if (!container) return;
+      container.innerHTML = "";
+      if (!meetings.length) {
+        const empty = document.createElement("p");
+        empty.className = "muted";
+        empty.textContent = emptyText;
+        container.appendChild(empty);
+        return;
+      }
+      meetings.forEach((meeting) => {
+        const card = document.createElement("article");
+        card.className = "card meeting-card";
+        const title = document.createElement("h3");
+        title.textContent = `Meeting ${meeting.meetingId}`;
+        const meta = document.createElement("p");
+        meta.className = "muted small";
+        meta.textContent = new Date(meeting.createdAt).toLocaleString();
+        const status = document.createElement("span");
+        status.className = "badge";
+        status.textContent = meeting.status;
+        card.append(title, meta, status);
+        if (meeting.status === "live") {
+          const footer = document.createElement("footer");
+          const join = document.createElement("button");
+          join.className = "btn primary";
+          join.type = "button";
+          join.textContent = "Join";
+          join.addEventListener("click", () => joinMeeting(meeting, 0));
+          footer.appendChild(join);
+          card.appendChild(footer);
+        }
+        container.appendChild(card);
+      });
+    };
+
+    const loadAdminMeetings = async () => {
+      if (!adminMeetingsPanel) return;
+      try {
+        const params = new URLSearchParams();
+        if (adminMeetingsForm) {
+          const formData = new FormData(adminMeetingsForm);
+          for (const [key, value] of formData.entries()) {
+            if (String(value || "").trim()) params.set(key, value);
+          }
+        }
+        const res = await apiFetch(`/api/meetings${params.toString() ? `?${params}` : ""}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) return;
+        renderMeetingList(adminMeetingsPanel.querySelector("[data-meetings-live]"), data.live || [], "No live calls.");
+        renderMeetingList(adminMeetingsPanel.querySelector("[data-meetings-scheduled]"), data.scheduled || [], "No scheduled calls.");
+        renderMeetingList(adminMeetingsPanel.querySelector("[data-meetings-past]"), data.past || [], "No past calls.");
+      } catch {
+        // ignore
+      }
+    };
+
+    adminMeetingsForm?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      loadAdminMeetings();
+    });
+
+    getVideoToken()
+      .then(() => ensureSocket())
+      .then(() => loadAdminMeetings())
+      .catch(() => {
+        // Video calling remains unavailable if the gateway is offline.
+      });
+  };
+
   const initMessaging = () => {
     const navBadge = document.querySelector("[data-messages-unread]");
     const threadsList = document.querySelector("[data-threads-list]");
@@ -1938,4 +2231,5 @@ document.addEventListener("DOMContentLoaded", () => {
   initAdminDoctorAssignment();
   initAdminCalendar();
   initMessaging();
+  initVideoCalling();
 });

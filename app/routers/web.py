@@ -12,6 +12,7 @@ from fastapi import APIRouter, Body, Form, Request, Query
 from fastapi.templating import Jinja2Templates
 from bson import ObjectId
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
+from jose import jwt
 from starlette.concurrency import run_in_threadpool
 
 from app.core.config import get_settings
@@ -143,6 +144,7 @@ def base_context(request: Request, **extra):
         "show_admin": extra.pop("show_admin", False),
         "current_user": extra.pop("current_user", None),
         "avatar_url": extra.pop("avatar_url", AVATAR_MAP["default"]),
+        "video_call_api_url": extra.pop("video_call_api_url", _video_call_api_url()),
     }
     context.update(extra)
     return context
@@ -364,6 +366,14 @@ def _user_display_name(user: dict | None) -> str:
     if (user.get("role") or "").strip().lower() == "doctor":
         return f"Dr. {name}".strip()
     return name or str(user.get("email") or "User")
+
+
+def _jwt_secret() -> str:
+    return settings.jwt_secret or settings.secret_key
+
+
+def _video_call_api_url() -> str:
+    return str(getattr(settings, "video_call_api_url", "") or "http://localhost:4000").rstrip("/")
 
 
 def _appointment_time_label(start_at: datetime, end_at: datetime) -> str:
@@ -1162,10 +1172,52 @@ async def message_thread(request: Request, thread_id: str):
         "other_last_read_at": _iso(_other_last_read_at(convo, user_id)),
         "calendar_supported": calendar_supported,
         "can_propose_calendar": can_propose_calendar,
+        "video_supported": calendar_supported,
+        "doctor_id": str(doctor.get("_id")) if doctor else "",
+        "patient_id": str(patient.get("_id")) if patient else "",
+        "admin_id": str(doctor.get("assigned_admin_id") or "") if doctor else "",
     }
     return templates.TemplateResponse(
         "messages.html",
-        await build_context(request, threads=threads, conversation=conversation, messages=messages),
+        await build_context(
+            request,
+            threads=threads,
+            conversation=conversation,
+            messages=messages,
+            video_call_api_url=_video_call_api_url(),
+        ),
+    )
+
+
+@router.get("/api/video/token")
+async def api_video_token(request: Request):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    now = datetime.utcnow()
+    expires_at = now + timedelta(minutes=30)
+    payload = {
+        "sub": str(user.get("_id")),
+        "role": "admin" if _is_admin_user(user) else str(user.get("role") or "user"),
+        "name": _user_display_name(user),
+        "email": str(user.get("email") or ""),
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+    }
+    token = jwt.encode(payload, _jwt_secret(), algorithm="HS256")
+    return JSONResponse(
+        {
+            "token": token,
+            "expires_at": _iso(expires_at),
+            "user": {
+                "_id": payload["sub"],
+                "role": payload["role"],
+                "name": payload["name"],
+                "email": payload["email"],
+            },
+            "api_url": _video_call_api_url(),
+        }
     )
 
 

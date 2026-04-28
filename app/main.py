@@ -47,3 +47,8 @@ async def ensure_indexes():
     await db.appointments.create_index([("doctor_id", 1), ("status", 1), ("start_at", 1), ("end_at", 1)])
     await db.appointments.create_index([("conversation_id", 1), ("status", 1), ("start_at", 1)])
     await db.users.create_index([("assigned_admin_id", 1), ("role", 1)])
+    await db.meetings.create_index([("meetingId", 1)], unique=True)
+    await db.meetings.create_index([("doctorId", 1), ("status", 1), ("createdAt", -1)])
+    await db.meetings.create_index([("patientId", 1), ("status", 1), ("createdAt", -1)])
+    await db.meetings.create_index([("adminId", 1), ("status", 1), ("createdAt", -1)])
+    await db.meetings.create_index([("conversationId", 1), ("createdAt", -1)])

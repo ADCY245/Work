@@ -58,7 +58,7 @@
       </nav>
     </header>
 
-    <main>{% block content %}{% endblock %}</main>
+    <main data-video-call-api-url="{{ video_call_api_url or 'http://localhost:4000' }}">{% block content %}{% endblock %}</main>
 
     <footer class="site-footer site-footer-dark">
       <div class="footer-inner">
@@ -107,5 +107,21 @@
         <p class="lightbox-caption" data-lightbox-caption></p>
       </div>
     </div>
+
+    {% if is_authenticated %}
+    <dialog class="modal incoming-call-modal" data-incoming-call-dialog>
+      <div class="modal-body incoming-call-card">
+        <div class="incoming-call-avatar" aria-hidden="true">&#127909;</div>
+        <div>
+          <h2 data-incoming-call-title>Incoming Video Call</h2>
+          <p class="muted" data-incoming-call-copy>PhysiHome video call</p>
+        </div>
+        <div class="modal-actions">
+          <button class="btn primary" type="button" data-join-incoming-call>Join Now</button>
+          <button class="btn secondary" type="button" data-ignore-incoming-call>Ignore</button>
+        </div>
+      </div>
+    </dialog>
+    {% endif %}
   </body>
 </html>
