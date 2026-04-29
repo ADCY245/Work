@@ -705,7 +705,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const version = sdkVersion || "3.13.2";
         loadStyle(`https://source.zoom.us/${version}/css/bootstrap.css`);
         loadStyle(`https://source.zoom.us/${version}/css/react-select.css`);
-        zoomLoading = loadScript(`https://source.zoom.us/${version}/zoom-meeting-${version}.min.js`).then(() => {
+        zoomLoading = Promise.resolve()
+          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/react.min.js`))
+          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/react-dom.min.js`))
+          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/redux.min.js`))
+          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/redux-thunk.min.js`))
+          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/lodash.min.js`))
+          .then(() => loadScript(`https://source.zoom.us/${version}/zoom-meeting-${version}.min.js`))
+          .then(() => {
           if (!window.ZoomMtg) throw new Error("Zoom Meeting SDK did not load");
           window.ZoomMtg.setZoomJSLib(`https://source.zoom.us/${version}/lib`, "/av");
           window.ZoomMtg.preLoadWasm();
