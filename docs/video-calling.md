@@ -2,11 +2,10 @@
 
 This feature uses three separate responsibilities:
 
-- Zoom Server-to-Server OAuth app: creates instant meetings through the Zoom REST API.
-- Zoom Meeting SDK app: signs users into the in-page Zoom meeting UI.
+- Zoom app credentials: creates instant meetings and signs users into the in-page Zoom meeting UI.
 - Socket.IO gateway: sends real-time `incoming-call` and `call-ended` events to logged-in users.
 
-Do not reuse the Server-to-Server OAuth client credentials as Meeting SDK credentials.
+There is no `ZOOM_API` value to copy from Zoom. Use the values shown under **App Credentials** in the Zoom dashboard.
 
 ## Environment
 
@@ -25,12 +24,13 @@ MONGODB_DB_NAME=physihome
 VIDEO_CALL_PORT=4000
 VIDEO_CALL_ORIGIN=http://localhost:8000
 
-ZOOM_ACCOUNT_ID=server-to-server-oauth-account-id
-ZOOM_CLIENT_ID=server-to-server-oauth-client-id
-ZOOM_CLIENT_SECRET=server-to-server-oauth-client-secret
+ZOOM_ACCOUNT_ID=account-id-from-zoom-app-credentials
+ZOOM_CLIENT_ID=client-id-from-zoom-app-credentials
+ZOOM_CLIENT_SECRET=client-secret-from-zoom-app-credentials
 
-ZOOM_SDK_KEY=meeting-sdk-key-or-client-id
-ZOOM_SDK_SECRET=meeting-sdk-secret
+# Optional. Leave these out when the same Zoom app credentials are used for Meeting SDK.
+ZOOM_SDK_KEY=meeting-sdk-client-id-if-different
+ZOOM_SDK_SECRET=meeting-sdk-client-secret-if-different
 ZOOM_WEB_SDK_VERSION=3.13.2
 
 JWT_SECRET=replace-with-shared-video-jwt-secret

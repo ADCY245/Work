@@ -601,7 +601,7 @@ document.addEventListener("DOMContentLoaded", () => {
           script.dataset.loaded = "true";
           resolve();
         };
-        script.onerror = reject;
+        script.onerror = () => reject(new Error(`Could not load ${src}`));
         document.head.appendChild(script);
       });
 
@@ -644,6 +644,14 @@ document.addEventListener("DOMContentLoaded", () => {
         headers.set("Content-Type", "application/json");
       }
       return fetch(`${apiBase}${path}`, { ...options, headers });
+    };
+
+    const videoServiceError = (error) => {
+      const message = String(error?.message || error || "").toLowerCase();
+      if (message.includes("failed to fetch") || message.includes("socket.io") || message.includes("load")) {
+        return "Video calling service is offline. Start the Node video server on port 4000, then try again.";
+      }
+      return "Could not start video call";
     };
 
     const ensureSocket = async () => {
@@ -756,7 +764,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       startCallBtn.disabled = true;
       try {
-        await ensureSocket();
         const res = await apiFetch("/api/meetings/create", {
           method: "POST",
           body: JSON.stringify({ conversationId: callContext.dataset.conversationId }),
@@ -768,10 +775,13 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const state = await getVideoToken();
         const role = String(state.user?._id || "") === String(data.meeting?.doctorId || "") ? 1 : 0;
+        ensureSocket().catch(() => {
+          // Meeting creation still works; this only affects this tab's live socket subscription.
+        });
         await joinMeeting(data.meeting, role);
       } catch (error) {
         console.error(error);
-        alert("Could not start video call");
+        alert(videoServiceError(error));
       } finally {
         startCallBtn.disabled = false;
       }
