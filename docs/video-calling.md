@@ -16,6 +16,14 @@ JWT_SECRET=replace-with-shared-video-jwt-secret
 VIDEO_CALL_API_URL=http://localhost:4000
 ```
 
+For production, `VIDEO_CALL_API_URL` must be a public HTTPS URL that browsers can reach, for example:
+
+```env
+VIDEO_CALL_API_URL=https://video.physihome.shop
+```
+
+Do not deploy `VIDEO_CALL_API_URL=http://localhost:4000` on `physihome.shop`; in a browser, `localhost` means the visitor's own device.
+
 Node video service:
 
 ```env

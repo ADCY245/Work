@@ -569,7 +569,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!authRoot) return;
 
     const main = document.querySelector("main");
-    const apiBase = (main?.dataset.videoCallApiUrl || "http://localhost:4000").replace(/\/$/, "");
+    const pageIsLocal = ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+    const configuredApiBase = (main?.dataset.videoCallApiUrl || "").replace(/\/$/, "");
+    const apiBase = configuredApiBase || (pageIsLocal ? "http://localhost:4000" : "");
     const callContext = document.querySelector("[data-video-call-context]");
     const startCallBtn = document.querySelector("[data-start-video-call]");
     const incomingDialog = document.querySelector("[data-incoming-call-dialog]");
@@ -637,6 +639,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const apiFetch = async (path, options = {}) => {
       const state = await getVideoToken();
+      if (!apiBase) {
+        throw new Error("VIDEO_CALL_API_URL is not configured");
+      }
+      try {
+        const target = new URL(apiBase, window.location.origin);
+        if (!pageIsLocal && ["localhost", "127.0.0.1"].includes(target.hostname)) {
+          throw new Error("VIDEO_CALL_API_URL points to localhost on a public page");
+        }
+      } catch (error) {
+        if (String(error?.message || "").includes("VIDEO_CALL_API_URL")) throw error;
+      }
       const headers = new Headers(options.headers || {});
       headers.set("Authorization", `Bearer ${state.token}`);
       headers.set("Accept", "application/json");
@@ -648,8 +661,13 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const videoServiceError = (error) => {
       const message = String(error?.message || error || "").toLowerCase();
+      if (message.includes("video_call_api_url")) {
+        return "Video calling is not configured for this site. Set VIDEO_CALL_API_URL to the public Node video service URL, then restart the FastAPI app.";
+      }
       if (message.includes("failed to fetch") || message.includes("socket.io") || message.includes("load")) {
-        return "Video calling service is offline. Start the Node video server on port 4000, then try again.";
+        return pageIsLocal
+          ? "Video calling service is offline. Start the Node video server on port 4000, then try again."
+          : "Video calling service is offline or not reachable from this site. Check the public VIDEO_CALL_API_URL service.";
       }
       return "Could not start video call";
     };
@@ -657,6 +675,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const ensureSocket = async () => {
       if (socket?.connected) return socket;
       const state = await getVideoToken();
+      if (!apiBase) {
+        throw new Error("VIDEO_CALL_API_URL is not configured");
+      }
       await loadScript(`${apiBase}/socket.io/socket.io.js`);
       if (!window.io) throw new Error("Socket.IO client unavailable");
       socket = window.io(apiBase, {

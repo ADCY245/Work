@@ -67,7 +67,7 @@ class Settings(BaseSettings):
         alias="MESSAGE_PRESENCE_WINDOW_SECONDS",
     )
     video_call_api_url: str = Field(
-        default="http://localhost:4000",
+        default="",
         alias="VIDEO_CALL_API_URL",
     )
 

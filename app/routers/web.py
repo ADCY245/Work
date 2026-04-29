@@ -373,7 +373,7 @@ def _jwt_secret() -> str:
 
 
 def _video_call_api_url() -> str:
-    return str(getattr(settings, "video_call_api_url", "") or "http://localhost:4000").rstrip("/")
+    return str(getattr(settings, "video_call_api_url", "") or "").rstrip("/")
 
 
 def _appointment_time_label(start_at: datetime, end_at: datetime) -> str:
