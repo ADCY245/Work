@@ -17,8 +17,10 @@ const {
   ZOOM_ACCOUNT_ID,
   ZOOM_CLIENT_ID,
   ZOOM_CLIENT_SECRET,
-  ZOOM_SDK_KEY,
-  ZOOM_SDK_SECRET,
+  ZOOM_MEETING_SDK_KEY,
+  ZOOM_MEETING_SDK_SECRET,
+  ZOOM_SDK_KEY = ZOOM_MEETING_SDK_KEY,
+  ZOOM_SDK_SECRET = ZOOM_MEETING_SDK_SECRET,
   ZOOM_WEB_SDK_VERSION = "3.13.2",
   JWT_SECRET,
 } = process.env;
@@ -38,6 +40,12 @@ if (process.env.RENDER && !process.env.MONGODB_URI && !process.env.MONGO_URI) {
 
 for (const [key, value] of Object.entries(requiredEnv)) {
   if (!value) {
+    if (key === "ZOOM_SDK_KEY") {
+      throw new Error("ZOOM_SDK_KEY is required. Use the Meeting SDK key/client id, or set ZOOM_MEETING_SDK_KEY.");
+    }
+    if (key === "ZOOM_SDK_SECRET") {
+      throw new Error("ZOOM_SDK_SECRET is required. Use the Meeting SDK secret/client secret, not Zoom's webhook Secret token. You can also set ZOOM_MEETING_SDK_SECRET.");
+    }
     throw new Error(`${key} is required for the video calling service`);
   }
 }
@@ -268,7 +276,6 @@ app.post("/api/meetings/create", authMiddleware, async (req, res) => {
 
 app.post("/api/zoom/signature", authMiddleware, async (req, res) => {
   const meetingNumber = String(req.body?.meetingNumber || "").trim();
-  const requestedRole = Number(req.body?.role || 0) === 1 ? 1 : 0;
   if (!meetingNumber) {
     return res.status(400).json({ error: "meetingNumber is required" });
   }
@@ -281,7 +288,7 @@ app.post("/api/zoom/signature", authMiddleware, async (req, res) => {
     return res.status(403).json({ error: "Forbidden" });
   }
 
-  const role = String(meeting.doctorId) === String(req.user.sub) ? requestedRole : 0;
+  const role = 0;
   const signature = generateSdkSignature({ meetingNumber, role });
   res.json({
     signature,

@@ -805,11 +805,10 @@ document.addEventListener("DOMContentLoaded", () => {
           return;
         }
         const state = await getVideoToken();
-        const role = String(state.user?._id || "") === String(data.meeting?.doctorId || "") ? 1 : 0;
         ensureSocket().catch(() => {
           // Meeting creation still works; this only affects this tab's live socket subscription.
         });
-        await joinMeeting(data.meeting, role);
+        await joinMeeting(data.meeting, 0);
       } catch (error) {
         console.error(error);
         alert(videoServiceError(error));

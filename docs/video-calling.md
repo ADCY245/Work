@@ -38,6 +38,9 @@ ZOOM_CLIENT_SECRET=client-secret-from-zoom-app-credentials
 
 ZOOM_SDK_KEY=meeting-sdk-key-or-client-id
 ZOOM_SDK_SECRET=meeting-sdk-secret-or-client-secret
+# Or use these clearer aliases instead:
+# ZOOM_MEETING_SDK_KEY=meeting-sdk-key-or-client-id
+# ZOOM_MEETING_SDK_SECRET=meeting-sdk-secret-or-client-secret
 ZOOM_WEB_SDK_VERSION=3.13.2
 
 JWT_SECRET=replace-with-shared-video-jwt-secret
@@ -56,6 +59,7 @@ ZOOM_CLIENT_ID=client-id-from-zoom-app-credentials
 ZOOM_CLIENT_SECRET=client-secret-from-zoom-app-credentials
 ZOOM_SDK_KEY=meeting-sdk-key-or-client-id
 ZOOM_SDK_SECRET=meeting-sdk-secret-or-client-secret
+# Or use ZOOM_MEETING_SDK_KEY and ZOOM_MEETING_SDK_SECRET instead.
 
 JWT_SECRET=same-jwt-secret-used-by-fastapi
 ```
@@ -63,6 +67,8 @@ JWT_SECRET=same-jwt-secret-used-by-fastapi
 Most hosts set `PORT` automatically. The Node video service uses `PORT` when it is present, otherwise `VIDEO_CALL_PORT`, otherwise `4000`.
 
 On Render, do not leave `MONGODB_URI`/`MONGO_URI` unset. If both are missing, the service tries local MongoDB during development (`mongodb://localhost:27017`), which does not exist inside Render.
+
+Do not put Zoom's **Secret token** in `ZOOM_SDK_SECRET`. That token is for webhook/event verification. The Meeting SDK signature must use the Meeting SDK secret/client secret that matches `ZOOM_SDK_KEY`.
 
 ## MongoDB Schema
 
