@@ -711,7 +711,12 @@ document.addEventListener("DOMContentLoaded", () => {
           .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/redux.min.js`))
           .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/redux-thunk.min.js`))
           .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/lodash.min.js`))
-          .then(() => loadScript(`https://source.zoom.us/${version}/zoom-meeting-${version}.min.js`))
+          .then(() => {
+            if (!window.React || !window.ReactDOM) {
+              throw new Error("Zoom Meeting SDK dependencies did not load");
+            }
+          })
+          .then(() => loadScript(`https://source.zoom.us/zoom-meeting-${version}.min.js`))
           .then(() => {
           if (!window.ZoomMtg) throw new Error("Zoom Meeting SDK did not load");
           window.ZoomMtg.setZoomJSLib(`https://source.zoom.us/${version}/lib`, "/av");

@@ -36,9 +36,8 @@ ZOOM_ACCOUNT_ID=account-id-from-zoom-app-credentials
 ZOOM_CLIENT_ID=client-id-from-zoom-app-credentials
 ZOOM_CLIENT_SECRET=client-secret-from-zoom-app-credentials
 
-# Optional. Leave these out when the same Zoom app credentials are used for Meeting SDK.
-ZOOM_SDK_KEY=meeting-sdk-client-id-if-different
-ZOOM_SDK_SECRET=meeting-sdk-client-secret-if-different
+ZOOM_SDK_KEY=meeting-sdk-key-or-client-id
+ZOOM_SDK_SECRET=meeting-sdk-secret-or-client-secret
 ZOOM_WEB_SDK_VERSION=3.13.2
 
 JWT_SECRET=replace-with-shared-video-jwt-secret
@@ -55,6 +54,8 @@ VIDEO_CALL_ORIGIN=https://physihome.shop
 ZOOM_ACCOUNT_ID=account-id-from-zoom-app-credentials
 ZOOM_CLIENT_ID=client-id-from-zoom-app-credentials
 ZOOM_CLIENT_SECRET=client-secret-from-zoom-app-credentials
+ZOOM_SDK_KEY=meeting-sdk-key-or-client-id
+ZOOM_SDK_SECRET=meeting-sdk-secret-or-client-secret
 
 JWT_SECRET=same-jwt-secret-used-by-fastapi
 ```
