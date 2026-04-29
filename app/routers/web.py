@@ -1456,19 +1456,13 @@ async def api_message_presence_offline(request: Request):
     if not user:
         return JSONResponse({"ok": False}, status_code=401)
 
-    thread_id = request.query_params.get("thread_id")
-    if not thread_id:
-        try:
-            form = await request.form()
-            thread_id = form.get("thread_id")
-        except Exception:
-            thread_id = None
+    thread_id = request.query_params.get("thread_id") or ""
 
     db = get_database()
     user_id = str(user.get("_id"))
     await db.user_presence.update_one(
         {"user_id": user_id},
-        {"$set": {"updated_at": datetime.utcfromtimestamp(0), "active_thread_id": thread_id or ""}},
+        {"$set": {"updated_at": datetime.utcfromtimestamp(0), "active_thread_id": thread_id}},
         upsert=True,
     )
     return JSONResponse({"ok": True})

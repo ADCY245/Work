@@ -52,15 +52,13 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const goOffline = () => {
-      const payload = new FormData();
-      if (activeThreadId) payload.append("thread_id", activeThreadId);
+      const url = activeThreadId ? `/api/messages/presence/offline?thread_id=${activeThreadId}` : "/api/messages/presence/offline";
       if (navigator.sendBeacon) {
-        navigator.sendBeacon("/api/messages/presence/offline", payload);
+        navigator.sendBeacon(url);
         return;
       }
-      fetch("/api/messages/presence/offline", {
+      fetch(url, {
         method: "POST",
-        body: payload,
         keepalive: true,
       }).catch(() => {
         // ignore
