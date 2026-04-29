@@ -8,10 +8,12 @@ import { MongoClient, ObjectId } from "mongodb";
 import { Server } from "socket.io";
 
 const {
-  MONGODB_URI = "mongodb://localhost:27017",
+  MONGO_URI,
+  MONGODB_URI = MONGO_URI || "mongodb://localhost:27017",
   MONGODB_DB_NAME = "physihome",
   VIDEO_CALL_ORIGIN = "*",
-  VIDEO_CALL_PORT = "4000",
+  PORT,
+  VIDEO_CALL_PORT = PORT || "4000",
   ZOOM_ACCOUNT_ID,
   ZOOM_CLIENT_ID,
   ZOOM_CLIENT_SECRET,
@@ -27,6 +29,10 @@ const requiredEnv = {
   ZOOM_CLIENT_SECRET,
   JWT_SECRET,
 };
+
+if (process.env.RENDER && !process.env.MONGODB_URI && !process.env.MONGO_URI) {
+  throw new Error("MONGODB_URI or MONGO_URI is required on Render. Use the same MongoDB connection string as the FastAPI app.");
+}
 
 for (const [key, value] of Object.entries(requiredEnv)) {
   if (!value) {

@@ -44,6 +44,25 @@ ZOOM_WEB_SDK_VERSION=3.13.2
 JWT_SECRET=replace-with-shared-video-jwt-secret
 ```
 
+Production Node video service:
+
+```env
+MONGODB_URI=same-mongodb-uri-used-by-fastapi
+# Or use MONGO_URI if that is the existing key in your host.
+MONGODB_DB_NAME=physihome
+VIDEO_CALL_ORIGIN=https://physihome.shop
+
+ZOOM_ACCOUNT_ID=account-id-from-zoom-app-credentials
+ZOOM_CLIENT_ID=client-id-from-zoom-app-credentials
+ZOOM_CLIENT_SECRET=client-secret-from-zoom-app-credentials
+
+JWT_SECRET=same-jwt-secret-used-by-fastapi
+```
+
+Most hosts set `PORT` automatically. The Node video service uses `PORT` when it is present, otherwise `VIDEO_CALL_PORT`, otherwise `4000`.
+
+On Render, do not leave `MONGODB_URI`/`MONGO_URI` unset. If both are missing, the service tries local MongoDB during development (`mongodb://localhost:27017`), which does not exist inside Render.
+
 ## MongoDB Schema
 
 Collection: `meetings`
