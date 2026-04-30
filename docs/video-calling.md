@@ -58,7 +58,11 @@ Most hosts set `PORT` automatically. The Node video service uses `PORT` when it 
 
 On Render, do not leave `MONGODB_URI`/`MONGO_URI` unset. If both are missing, the service tries local MongoDB during development (`mongodb://localhost:27017`), which does not exist inside Render.
 
-The frontend opens `meeting.joinUrl` with `window.open(...)`. This uses Zoom's hosted meeting page, so the browser does not need a Meeting SDK signature and does not need `ZOOM_SDK_KEY` or `ZOOM_SDK_SECRET`.
+The frontend opens Zoom's hosted browser client from `meeting.joinUrl`, so the browser does not need a Meeting SDK signature and does not need `ZOOM_SDK_KEY` or `ZOOM_SDK_SECRET`.
+
+Video calls can be started only by doctors and admins. Patients can receive and join calls, but cannot create one.
+
+For faster free-tier startup, the messages page makes a best-effort `/health` request to the Node video service. A free uptime monitor can also ping the same `/health` URL every few minutes to reduce Render cold starts.
 
 ## MongoDB Schema
 

@@ -106,13 +106,14 @@ const getConversation = async (conversationId, userId) => {
   return db.collection("conversations").findOne({ _id: oid, participants: String(userId) });
 };
 
-const getDoctorPatient = async (conversation) => {
+const getMeetingParticipants = async (conversation) => {
   const participantIds = (conversation?.participants || []).map(String);
   const objectIds = participantIds.map(asObjectId).filter(Boolean);
   const users = await db.collection("users").find({ _id: { $in: objectIds } }).toArray();
   const doctor = users.find((u) => String(u.role || "").toLowerCase() === "doctor");
-  const patient = users.find((u) => String(u._id) !== String(doctor?._id));
-  return { doctor, patient };
+  const admin = users.find((u) => String(u._id) !== String(doctor?._id) && isAdmin(u));
+  const patient = users.find((u) => String(u._id) !== String(doctor?._id) && !isAdmin(u));
+  return { doctor, admin, patient, users };
 };
 
 const assertMeetingAccess = async (meeting, userId) => {
@@ -195,19 +196,21 @@ app.post("/api/meetings/create", authMiddleware, async (req, res) => {
       return res.status(403).json({ error: "Forbidden" });
     }
 
-    const { doctor, patient } = await getDoctorPatient(conversation);
-    if (!doctor || !patient) {
-      return res.status(400).json({ error: "Video calls are available for doctor-patient chats only" });
+    const { doctor, admin, patient, users } = await getMeetingParticipants(conversation);
+    if (!doctor || (!admin && !patient)) {
+      return res.status(400).json({ error: "Video calls are available for doctor chats only" });
     }
 
     const callerId = String(req.user.sub);
-    const allowedCaller = [String(doctor._id), String(patient._id)].includes(callerId);
+    const caller = users.find((u) => String(u._id) === callerId) || (await getUser(callerId));
+    const allowedCaller = String(doctor._id) === callerId || isAdmin(caller);
     if (!allowedCaller) {
-      return res.status(403).json({ error: "Only the doctor or patient can start this call" });
+      return res.status(403).json({ error: "Only doctors and admins can start video calls" });
     }
 
     const zoomMeeting = await createZoomMeeting();
     const now = new Date();
+    const adminId = String(admin?._id || doctor.assigned_admin_id || "");
     const meeting = {
       meetingId: String(zoomMeeting.id),
       uuid: zoomMeeting.uuid,
@@ -216,8 +219,8 @@ app.post("/api/meetings/create", authMiddleware, async (req, res) => {
       password: zoomMeeting.password || "",
       conversationId,
       doctorId: String(doctor._id),
-      patientId: String(patient._id),
-      adminId: String(doctor.assigned_admin_id || ""),
+      patientId: String(patient?._id || ""),
+      adminId,
       createdBy: callerId,
       status: "live",
       createdAt: now,

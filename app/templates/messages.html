@@ -47,6 +47,7 @@
           data-video-call-context
           data-conversation-id="{{ conversation._id }}"
           data-video-supported="{{ 'true' if conversation.video_supported else 'false' }}"
+          data-can-start-video="{{ 'true' if conversation.can_start_video else 'false' }}"
           data-doctor-id="{{ conversation.doctor_id or '' }}"
           data-patient-id="{{ conversation.patient_id or '' }}"
           data-admin-id="{{ conversation.admin_id or '' }}"
@@ -60,7 +61,7 @@
             </span>
           </div>
           <div class="conversation-actions">
-            {% if conversation.video_supported %}
+            {% if conversation.video_supported and conversation.can_start_video %}
             <button class="icon-btn video-call-btn" type="button" title="Start video call" aria-label="Start video call" data-start-video-call>&#127909;</button>
             {% endif %}
             {% if current_user and current_user.role == 'doctor' and conversation.calendar_supported and conversation.can_propose_calendar %}

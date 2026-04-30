@@ -518,6 +518,22 @@ async def _get_conversation_doctor_patient(db, convo: dict) -> tuple[dict | None
     return doctor, patient
 
 
+async def _get_conversation_call_participants(db, convo: dict) -> tuple[dict | None, dict | None, dict | None]:
+    participant_ids = [str(pid) for pid in (convo.get("participants") or [])]
+    users = []
+    for pid in participant_ids:
+        try:
+            found = await db.users.find_one({"_id": ObjectId(pid)})
+        except Exception:
+            found = None
+        if found:
+            users.append(found)
+    doctor = next((u for u in users if (u.get("role") or "").strip().lower() == "doctor"), None)
+    admin = next((u for u in users if doctor and str(u.get("_id")) != str(doctor.get("_id")) and _is_admin_user(u)), None)
+    patient = next((u for u in users if doctor and str(u.get("_id")) != str(doctor.get("_id")) and not _is_admin_user(u)), None)
+    return doctor, admin, patient
+
+
 async def _admin_can_manage_doctor(admin: dict, doctor: dict | None) -> bool:
     if not _is_admin_user(admin) or not doctor:
         return False
@@ -1162,9 +1178,10 @@ async def message_thread(request: Request, thread_id: str):
 
     conversation_summary = await _build_thread_summary(db, convo, user_id, admin_ids, online_ids)
 
-    doctor, patient = await _get_conversation_doctor_patient(db, convo)
+    doctor, admin_participant, patient = await _get_conversation_call_participants(db, convo)
     calendar_supported = bool(doctor and patient)
     can_propose_calendar = bool(calendar_supported and str(doctor.get("_id")) == user_id)
+    user_can_start_video = bool(doctor and (str(doctor.get("_id")) == user_id or _is_admin_user(user)))
     conversation = {
         "_id": str(convo_oid),
         "title": conversation_summary.get("title") or "Conversation",
@@ -1172,10 +1189,11 @@ async def message_thread(request: Request, thread_id: str):
         "other_last_read_at": _iso(_other_last_read_at(convo, user_id)),
         "calendar_supported": calendar_supported,
         "can_propose_calendar": can_propose_calendar,
-        "video_supported": calendar_supported,
+        "video_supported": bool(doctor and (patient or admin_participant)),
+        "can_start_video": user_can_start_video,
         "doctor_id": str(doctor.get("_id")) if doctor else "",
         "patient_id": str(patient.get("_id")) if patient else "",
-        "admin_id": str(doctor.get("assigned_admin_id") or "") if doctor else "",
+        "admin_id": str(admin_participant.get("_id") or doctor.get("assigned_admin_id") or "") if doctor else "",
     }
     return templates.TemplateResponse(
         "messages.html",

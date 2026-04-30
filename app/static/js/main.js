@@ -661,6 +661,35 @@ document.addEventListener("DOMContentLoaded", () => {
       return "Could not start video call";
     };
 
+    const encodeZoomName = (name) => {
+      const raw = String(name || "PhysiHome User");
+      try {
+        return btoa(unescape(encodeURIComponent(raw)));
+      } catch {
+        return btoa(raw.replace(/[^\x20-\x7E]/g, ""));
+      }
+    };
+
+    const zoomBrowserJoinUrl = (meeting, user) => {
+      const meetingNumber = String(meeting.meetingNumber || meeting.meetingId || "").replace(/\D/g, "");
+      const joinUrl = meeting.joinUrl || meeting.join_url;
+      if (!meetingNumber || !joinUrl) return joinUrl;
+      let parsed;
+      try {
+        parsed = new URL(joinUrl);
+      } catch {
+        return joinUrl;
+      }
+      const url = new URL(`/wc/${meetingNumber}/join`, parsed.origin);
+      const password = meeting.password || parsed.searchParams.get("pwd") || "";
+      const shortId = String(user?._id || "").slice(-6);
+      const displayName = shortId ? `${user?.name || "PhysiHome User"} (${shortId})` : user?.name;
+      if (password) url.searchParams.set("pwd", password);
+      url.searchParams.set("prefer", "1");
+      url.searchParams.set("un", encodeZoomName(displayName || "PhysiHome User"));
+      return url.toString();
+    };
+
     const ensureSocket = async () => {
       if (socket?.connected) return socket;
       const state = await getVideoToken();
@@ -690,14 +719,17 @@ document.addEventListener("DOMContentLoaded", () => {
       return socket;
     };
 
-    const joinMeeting = (meeting) => {
-      const joinUrl = meeting.joinUrl || meeting.join_url;
+    const joinMeeting = (meeting, targetWindow = null) => {
+      const joinUrl = zoomBrowserJoinUrl(meeting, authState?.user) || meeting.joinUrl || meeting.join_url;
       if (!joinUrl) {
         alert("Zoom join link is not available for this meeting");
+        targetWindow?.close?.();
         return;
       }
-      const opened = window.open(joinUrl, "_blank");
-      if (opened) {
+      const opened = targetWindow || window.open(joinUrl, "_blank");
+      if (targetWindow) {
+        targetWindow.location.href = joinUrl;
+      } else if (opened) {
         opened.opener = null;
       } else {
         window.location.href = joinUrl;
@@ -710,7 +742,7 @@ document.addEventListener("DOMContentLoaded", () => {
       pendingIncomingMeeting = meeting;
       const adminRecipient = String(meeting.adminId || "") === String(user?._id || "");
       if (incomingTitle) {
-        incomingTitle.textContent = adminRecipient ? "Doctor started a meeting" : "Incoming Video Call";
+        incomingTitle.textContent = adminRecipient ? "Doctor started a video call" : "Incoming Video Call";
       }
       if (incomingCopy) {
         incomingCopy.textContent = adminRecipient
@@ -724,12 +756,26 @@ document.addEventListener("DOMContentLoaded", () => {
       loadAdminMeetings();
     };
 
+    incomingDialog?.addEventListener("cancel", (event) => {
+      if (pendingIncomingMeeting) event.preventDefault();
+    });
+
     startCallBtn?.addEventListener("click", async () => {
       if (!callContext || callContext.dataset.videoSupported !== "true") {
-        alert("Video calls are available for doctor-patient chats only");
+        alert("Video calls are available for doctor chats only");
+        return;
+      }
+      if (callContext.dataset.canStartVideo !== "true") {
+        alert("Only doctors and admins can start video calls");
         return;
       }
       startCallBtn.disabled = true;
+      const pendingWindow = window.open("about:blank", "_blank");
+      if (pendingWindow) {
+        pendingWindow.opener = null;
+        pendingWindow.document.title = "Opening Zoom...";
+        pendingWindow.document.body.innerHTML = "<p style=\"font-family:system-ui,sans-serif;padding:24px;\">Opening Zoom meeting...</p>";
+      }
       try {
         const res = await apiFetch("/api/meetings/create", {
           method: "POST",
@@ -737,15 +783,16 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
+          pendingWindow?.close?.();
           alert(data.error || "Could not start video call");
           return;
         }
-        const state = await getVideoToken();
         ensureSocket().catch(() => {
           // Meeting creation still works; this only affects this tab's live socket subscription.
         });
-        joinMeeting(data.meeting);
+        joinMeeting(data.meeting, pendingWindow);
       } catch (error) {
+        pendingWindow?.close?.();
         console.error(error);
         alert(videoServiceError(error));
       } finally {
@@ -831,6 +878,11 @@ document.addEventListener("DOMContentLoaded", () => {
       .catch(() => {
         // Video calling remains unavailable if the gateway is offline.
       });
+    if (apiBase) {
+      fetch(`${apiBase}/health`, { mode: "cors", cache: "no-store" }).catch(() => {
+        // Best-effort warm-up for free hosts.
+      });
+    }
   };
 
   const initMessaging = () => {
