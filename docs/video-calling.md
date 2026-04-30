@@ -1,8 +1,8 @@
 # PhysiHome Video Calling
 
-This feature uses three separate responsibilities:
+This feature uses two separate responsibilities:
 
-- Zoom app credentials: creates instant meetings and signs users into the in-page Zoom meeting UI.
+- Zoom app credentials: creates instant meetings and returns Zoom's hosted `join_url`.
 - Socket.IO gateway: sends real-time `incoming-call` and `call-ended` events to logged-in users.
 
 There is no `ZOOM_API` value to copy from Zoom. Use the values shown under **App Credentials** in the Zoom dashboard.
@@ -36,13 +36,6 @@ ZOOM_ACCOUNT_ID=account-id-from-zoom-app-credentials
 ZOOM_CLIENT_ID=client-id-from-zoom-app-credentials
 ZOOM_CLIENT_SECRET=client-secret-from-zoom-app-credentials
 
-ZOOM_SDK_KEY=meeting-sdk-key-or-client-id
-ZOOM_SDK_SECRET=meeting-sdk-secret-or-client-secret
-# Or use these clearer aliases instead:
-# ZOOM_MEETING_SDK_KEY=meeting-sdk-key-or-client-id
-# ZOOM_MEETING_SDK_SECRET=meeting-sdk-secret-or-client-secret
-ZOOM_WEB_SDK_VERSION=3.13.2
-
 JWT_SECRET=replace-with-shared-video-jwt-secret
 ```
 
@@ -57,9 +50,6 @@ VIDEO_CALL_ORIGIN=https://physihome.shop
 ZOOM_ACCOUNT_ID=account-id-from-zoom-app-credentials
 ZOOM_CLIENT_ID=client-id-from-zoom-app-credentials
 ZOOM_CLIENT_SECRET=client-secret-from-zoom-app-credentials
-ZOOM_SDK_KEY=meeting-sdk-key-or-client-id
-ZOOM_SDK_SECRET=meeting-sdk-secret-or-client-secret
-# Or use ZOOM_MEETING_SDK_KEY and ZOOM_MEETING_SDK_SECRET instead.
 
 JWT_SECRET=same-jwt-secret-used-by-fastapi
 ```
@@ -68,25 +58,7 @@ Most hosts set `PORT` automatically. The Node video service uses `PORT` when it 
 
 On Render, do not leave `MONGODB_URI`/`MONGO_URI` unset. If both are missing, the service tries local MongoDB during development (`mongodb://localhost:27017`), which does not exist inside Render.
 
-Do not put Zoom's **Secret token** in `ZOOM_SDK_SECRET`. That token is for webhook/event verification. The Meeting SDK signature must use the Meeting SDK secret/client secret that matches `ZOOM_SDK_KEY`.
-
-If the meeting is created successfully but the browser shows **Signature is invalid**, the Node service is reachable and `/api/zoom/signature` is responding, but Zoom rejected the Meeting SDK JWT. Check these first:
-
-- `ZOOM_SDK_KEY` and `ZOOM_SDK_SECRET` must come from the same Zoom Meeting SDK app credentials.
-- Do not mix the Server-to-Server OAuth `ZOOM_CLIENT_ID`/`ZOOM_CLIENT_SECRET` with a different Meeting SDK app.
-- If using Zoom's newer app dashboard, make sure Meeting SDK embedding is enabled for the app whose client ID/secret you use.
-- Restart the Node video service after changing any Zoom environment variable.
-
-If `ZOOM_CLIENT_ID`/`ZOOM_CLIENT_SECRET` belong to a Server-to-Server OAuth app, do not reuse them as `ZOOM_SDK_KEY`/`ZOOM_SDK_SECRET`. Create or open a Zoom Meeting SDK app and copy its client ID/SDK key and client secret/SDK secret into the SDK variables.
-
-The browser warning **Your browser doesn't support gallery view** is separate from signature validation. Gallery view requires Chrome/Chromium, HTTPS, and cross-origin isolation headers so `SharedArrayBuffer` is available. The FastAPI app sets:
-
-```http
-Cross-Origin-Opener-Policy: same-origin
-Cross-Origin-Embedder-Policy: credentialless
-```
-
-After deployment, verify `window.crossOriginIsolated` is `true` in Chrome DevTools on the page that opens Zoom.
+The frontend opens `meeting.joinUrl` with `window.open(...)`. This uses Zoom's hosted meeting page, so the browser does not need a Meeting SDK signature and does not need `ZOOM_SDK_KEY` or `ZOOM_SDK_SECRET`.
 
 ## MongoDB Schema
 

@@ -21,14 +21,6 @@ app.add_middleware(
 )
 
 
-@app.middleware("http")
-async def add_cross_origin_isolation_headers(request, call_next):
-    response = await call_next(request)
-    response.headers.setdefault("Cross-Origin-Opener-Policy", "same-origin")
-    response.headers.setdefault("Cross-Origin-Embedder-Policy", "credentialless")
-    return response
-
-
 class CachedStaticFiles(StaticFiles):
     async def get_response(self, path, scope):
         response = await super().get_response(path, scope)

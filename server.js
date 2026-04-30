@@ -17,11 +17,6 @@ const {
   ZOOM_ACCOUNT_ID,
   ZOOM_CLIENT_ID,
   ZOOM_CLIENT_SECRET,
-  ZOOM_MEETING_SDK_KEY,
-  ZOOM_MEETING_SDK_SECRET,
-  ZOOM_SDK_KEY = ZOOM_MEETING_SDK_KEY,
-  ZOOM_SDK_SECRET = ZOOM_MEETING_SDK_SECRET,
-  ZOOM_WEB_SDK_VERSION = "3.13.2",
   JWT_SECRET,
 } = process.env;
 
@@ -29,8 +24,6 @@ const requiredEnv = {
   ZOOM_ACCOUNT_ID,
   ZOOM_CLIENT_ID,
   ZOOM_CLIENT_SECRET,
-  ZOOM_SDK_KEY,
-  ZOOM_SDK_SECRET,
   JWT_SECRET,
 };
 
@@ -40,12 +33,6 @@ if (process.env.RENDER && !process.env.MONGODB_URI && !process.env.MONGO_URI) {
 
 for (const [key, value] of Object.entries(requiredEnv)) {
   if (!value) {
-    if (key === "ZOOM_SDK_KEY") {
-      throw new Error("ZOOM_SDK_KEY is required. Use the Meeting SDK key/client id, or set ZOOM_MEETING_SDK_KEY.");
-    }
-    if (key === "ZOOM_SDK_SECRET") {
-      throw new Error("ZOOM_SDK_SECRET is required. Use the Meeting SDK secret/client secret, not Zoom's webhook Secret token. You can also set ZOOM_MEETING_SDK_SECRET.");
-    }
     throw new Error(`${key} is required for the video calling service`);
   }
 }
@@ -182,36 +169,10 @@ const createZoomMeeting = async () => {
   return response.data;
 };
 
-const normalizeZoomMeetingNumber = (value) => String(value || "").replace(/\D/g, "");
-
-const normalizeZoomRole = (value) => {
-  const role = Number(value);
-  return role === 1 ? 1 : 0;
-};
-
-const generateSdkSignature = ({ meetingNumber, role }) => {
-  const iat = Math.floor(Date.now() / 1000) - 30;
-  const exp = iat + 60 * 60 * 2;
-  const normalizedMeetingNumber = normalizeZoomMeetingNumber(meetingNumber);
-  const normalizedRole = normalizeZoomRole(role);
-  return jwt.sign(
-    {
-      appKey: ZOOM_SDK_KEY,
-      sdkKey: ZOOM_SDK_KEY,
-      mn: normalizedMeetingNumber,
-      role: normalizedRole,
-      iat,
-      exp,
-      tokenExp: exp,
-    },
-    ZOOM_SDK_SECRET,
-    { algorithm: "HS256", header: { alg: "HS256", typ: "JWT" } },
-  );
-};
-
 const meetingPayload = (meeting) => ({
   meetingId: String(meeting.meetingId),
   meetingNumber: String(meeting.meetingId),
+  joinUrl: meeting.joinUrl || meeting.join_url || "",
   password: meeting.password || "",
   doctorId: String(meeting.doctorId),
   patientId: String(meeting.patientId),
@@ -281,38 +242,6 @@ app.post("/api/meetings/create", authMiddleware, async (req, res) => {
     const message = error?.response?.data?.message || error?.message || "Could not create meeting";
     return res.status(500).json({ error: message });
   }
-});
-
-app.post("/api/zoom/signature", authMiddleware, async (req, res) => {
-  const meetingNumber = normalizeZoomMeetingNumber(req.body?.meetingNumber);
-  if (!meetingNumber) {
-    return res.status(400).json({ error: "meetingNumber is required" });
-  }
-  if (!/^\d{9,12}$/.test(meetingNumber)) {
-    return res.status(400).json({ error: "meetingNumber must be a valid Zoom meeting number" });
-  }
-
-  const meeting = await db.collection("meetings").findOne({ meetingId: meetingNumber });
-  if (!meeting) {
-    return res.status(404).json({ error: "Meeting not found" });
-  }
-  if (!(await assertMeetingAccess(meeting, req.user.sub))) {
-    return res.status(403).json({ error: "Forbidden" });
-  }
-
-  const role = 0;
-  const signature = generateSdkSignature({ meetingNumber, role });
-  res.json({
-    signature,
-    sdkKey: ZOOM_SDK_KEY,
-    sdkVersion: ZOOM_WEB_SDK_VERSION,
-    meetingNumber,
-    passWord: meeting.password || "",
-    role,
-    userName: req.user.name || "PhysiHome User",
-    userEmail: req.user.email || "",
-    leaveUrl: "/messages",
-  });
 });
 
 app.get("/api/meetings", authMiddleware, async (req, res) => {

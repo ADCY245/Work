@@ -584,7 +584,6 @@ document.addEventListener("DOMContentLoaded", () => {
     let tokenPromise = null;
     let socket = null;
     let pendingIncomingMeeting = null;
-    let zoomLoading = null;
 
     const loadScript = (src) =>
       new Promise((resolve, reject) => {
@@ -604,14 +603,6 @@ document.addEventListener("DOMContentLoaded", () => {
         script.onerror = () => reject(new Error(`Could not load ${src}`));
         document.head.appendChild(script);
       });
-
-    const loadStyle = (href) => {
-      if (document.querySelector(`link[href="${href}"]`)) return;
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = href;
-      document.head.appendChild(link);
-    };
 
     const getVideoToken = async () => {
       if (authState?.token && Date.parse(authState.expires_at || "") > Date.now() + 60000) {
@@ -699,75 +690,20 @@ document.addEventListener("DOMContentLoaded", () => {
       return socket;
     };
 
-    const ensureZoomSdk = async (sdkVersion) => {
-      if (window.ZoomMtg) return;
-      if (!zoomLoading) {
-        const version = sdkVersion || "3.13.2";
-        loadStyle(`https://source.zoom.us/${version}/css/bootstrap.css`);
-        loadStyle(`https://source.zoom.us/${version}/css/react-select.css`);
-        zoomLoading = Promise.resolve()
-          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/react.min.js`))
-          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/react-dom.min.js`))
-          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/redux.min.js`))
-          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/redux-thunk.min.js`))
-          .then(() => loadScript(`https://source.zoom.us/${version}/lib/vendor/lodash.min.js`))
-          .then(() => {
-            if (!window.React || !window.ReactDOM) {
-              throw new Error("Zoom Meeting SDK dependencies did not load");
-            }
-          })
-          .then(() => loadScript(`https://source.zoom.us/zoom-meeting-${version}.min.js`))
-          .then(() => {
-          if (!window.ZoomMtg) throw new Error("Zoom Meeting SDK did not load");
-          window.ZoomMtg.setZoomJSLib(`https://source.zoom.us/${version}/lib`, "/av");
-          window.ZoomMtg.preLoadWasm();
-          window.ZoomMtg.prepareWebSDK();
-          window.ZoomMtg.i18n.load("en-US");
-          window.ZoomMtg.i18n.reload("en-US");
-        });
-      }
-      return zoomLoading;
-    };
-
-    const joinMeeting = async (meeting, requestedRole = 0) => {
-      const meetingNumber = meeting.meetingNumber || meeting.meetingId;
-      const res = await apiFetch("/api/zoom/signature", {
-        method: "POST",
-        body: JSON.stringify({ meetingNumber, role: requestedRole }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        alert(data.error || "Could not join video call");
+    const joinMeeting = (meeting) => {
+      const joinUrl = meeting.joinUrl || meeting.join_url;
+      if (!joinUrl) {
+        alert("Zoom join link is not available for this meeting");
         return;
       }
-      await ensureZoomSdk(data.sdkVersion);
-      const leaveUrl = data.leaveUrl || window.location.pathname || "/dashboard";
-      window.ZoomMtg.init({
-        leaveUrl,
-        patchJsMedia: true,
-        success: () => {
-          window.ZoomMtg.join({
-            meetingNumber: data.meetingNumber,
-            userName: data.userName,
-            userEmail: data.userEmail,
-            signature: data.signature,
-            sdkKey: data.sdkKey,
-            passWord: data.passWord || "",
-            success: () => {
-              incomingDialog?.close?.();
-              pendingIncomingMeeting = null;
-            },
-            error: (error) => {
-              console.error(error);
-              alert("Zoom could not join this call");
-            },
-          });
-        },
-        error: (error) => {
-          console.error(error);
-          alert("Zoom could not open inside the page");
-        },
-      });
+      const opened = window.open(joinUrl, "_blank");
+      if (opened) {
+        opened.opener = null;
+      } else {
+        window.location.href = joinUrl;
+      }
+      incomingDialog?.close?.();
+      pendingIncomingMeeting = null;
     };
 
     const showIncomingCall = (meeting, user) => {
@@ -808,7 +744,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ensureSocket().catch(() => {
           // Meeting creation still works; this only affects this tab's live socket subscription.
         });
-        await joinMeeting(data.meeting, 0);
+        joinMeeting(data.meeting);
       } catch (error) {
         console.error(error);
         alert(videoServiceError(error));
@@ -819,7 +755,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     joinIncomingBtn?.addEventListener("click", async () => {
       if (!pendingIncomingMeeting) return;
-      await joinMeeting(pendingIncomingMeeting, 0);
+      joinMeeting(pendingIncomingMeeting);
     });
 
     ignoreIncomingBtn?.addEventListener("click", () => {
@@ -855,7 +791,7 @@ document.addEventListener("DOMContentLoaded", () => {
           join.className = "btn primary";
           join.type = "button";
           join.textContent = "Join";
-          join.addEventListener("click", () => joinMeeting(meeting, 0));
+          join.addEventListener("click", () => joinMeeting(meeting));
           footer.appendChild(join);
           card.appendChild(footer);
         }
