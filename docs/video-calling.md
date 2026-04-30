@@ -70,6 +70,13 @@ On Render, do not leave `MONGODB_URI`/`MONGO_URI` unset. If both are missing, th
 
 Do not put Zoom's **Secret token** in `ZOOM_SDK_SECRET`. That token is for webhook/event verification. The Meeting SDK signature must use the Meeting SDK secret/client secret that matches `ZOOM_SDK_KEY`.
 
+If the meeting is created successfully but the browser shows **Signature is invalid**, the Node service is reachable and `/api/zoom/signature` is responding, but Zoom rejected the Meeting SDK JWT. Check these first:
+
+- `ZOOM_SDK_KEY` and `ZOOM_SDK_SECRET` must come from the same Zoom Meeting SDK app credentials.
+- Do not mix the Server-to-Server OAuth `ZOOM_CLIENT_ID`/`ZOOM_CLIENT_SECRET` with a different Meeting SDK app.
+- If using Zoom's newer app dashboard, make sure Meeting SDK embedding is enabled for the app whose client ID/secret you use.
+- Restart the Node video service after changing any Zoom environment variable.
+
 ## MongoDB Schema
 
 Collection: `meetings`

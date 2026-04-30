@@ -182,15 +182,24 @@ const createZoomMeeting = async () => {
   return response.data;
 };
 
+const normalizeZoomMeetingNumber = (value) => String(value || "").replace(/\D/g, "");
+
+const normalizeZoomRole = (value) => {
+  const role = Number(value);
+  return role === 1 ? 1 : 0;
+};
+
 const generateSdkSignature = ({ meetingNumber, role }) => {
   const iat = Math.floor(Date.now() / 1000) - 30;
   const exp = iat + 60 * 60 * 2;
+  const normalizedMeetingNumber = Number(normalizeZoomMeetingNumber(meetingNumber));
+  const normalizedRole = normalizeZoomRole(role);
   return jwt.sign(
     {
       appKey: ZOOM_SDK_KEY,
       sdkKey: ZOOM_SDK_KEY,
-      mn: String(meetingNumber),
-      role,
+      mn: normalizedMeetingNumber,
+      role: normalizedRole,
       iat,
       exp,
       tokenExp: exp,
@@ -275,9 +284,12 @@ app.post("/api/meetings/create", authMiddleware, async (req, res) => {
 });
 
 app.post("/api/zoom/signature", authMiddleware, async (req, res) => {
-  const meetingNumber = String(req.body?.meetingNumber || "").trim();
+  const meetingNumber = normalizeZoomMeetingNumber(req.body?.meetingNumber);
   if (!meetingNumber) {
     return res.status(400).json({ error: "meetingNumber is required" });
+  }
+  if (!/^\d{9,12}$/.test(meetingNumber)) {
+    return res.status(400).json({ error: "meetingNumber must be a valid Zoom meeting number" });
   }
 
   const meeting = await db.collection("meetings").findOne({ meetingId: meetingNumber });
