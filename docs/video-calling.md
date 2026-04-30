@@ -77,6 +77,17 @@ If the meeting is created successfully but the browser shows **Signature is inva
 - If using Zoom's newer app dashboard, make sure Meeting SDK embedding is enabled for the app whose client ID/secret you use.
 - Restart the Node video service after changing any Zoom environment variable.
 
+If `ZOOM_CLIENT_ID`/`ZOOM_CLIENT_SECRET` belong to a Server-to-Server OAuth app, do not reuse them as `ZOOM_SDK_KEY`/`ZOOM_SDK_SECRET`. Create or open a Zoom Meeting SDK app and copy its client ID/SDK key and client secret/SDK secret into the SDK variables.
+
+The browser warning **Your browser doesn't support gallery view** is separate from signature validation. Gallery view requires Chrome/Chromium, HTTPS, and cross-origin isolation headers so `SharedArrayBuffer` is available. The FastAPI app sets:
+
+```http
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: credentialless
+```
+
+After deployment, verify `window.crossOriginIsolated` is `true` in Chrome DevTools on the page that opens Zoom.
+
 ## MongoDB Schema
 
 Collection: `meetings`

@@ -192,7 +192,7 @@ const normalizeZoomRole = (value) => {
 const generateSdkSignature = ({ meetingNumber, role }) => {
   const iat = Math.floor(Date.now() / 1000) - 30;
   const exp = iat + 60 * 60 * 2;
-  const normalizedMeetingNumber = Number(normalizeZoomMeetingNumber(meetingNumber));
+  const normalizedMeetingNumber = normalizeZoomMeetingNumber(meetingNumber);
   const normalizedRole = normalizeZoomRole(role);
   return jwt.sign(
     {
