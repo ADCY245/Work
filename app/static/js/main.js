@@ -720,7 +720,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     const joinMeeting = (meeting, targetWindow = null) => {
-      const joinUrl = zoomBrowserJoinUrl(meeting, authState?.user) || meeting.joinUrl || meeting.join_url;
+      const canStart = callContext?.dataset.canStartVideo === "true";
+      const hostUrl = canStart ? (meeting.startUrl || meeting.start_url) : null;
+      const joinUrl = hostUrl || zoomBrowserJoinUrl(meeting, authState?.user) || meeting.joinUrl || meeting.join_url;
       if (!joinUrl) {
         alert("Zoom join link is not available for this meeting");
         targetWindow?.close?.();

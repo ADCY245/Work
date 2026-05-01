@@ -170,19 +170,27 @@ const createZoomMeeting = async () => {
   return response.data;
 };
 
-const meetingPayload = (meeting) => ({
-  meetingId: String(meeting.meetingId),
-  meetingNumber: String(meeting.meetingId),
-  joinUrl: meeting.joinUrl || meeting.join_url || "",
-  password: meeting.password || "",
-  doctorId: String(meeting.doctorId),
-  patientId: String(meeting.patientId),
-  adminId: String(meeting.adminId || ""),
-  conversationId: String(meeting.conversationId || ""),
-  status: meeting.status,
-  createdAt: meeting.createdAt,
-  endedAt: meeting.endedAt || null,
-});
+const meetingPayload = (meeting, viewer) => {
+  const viewerId = String(viewer?._id || viewer?.sub || "");
+  const viewerRole = String(viewer?.role || "").toLowerCase();
+  const canStart = viewerRole === "doctor" || isAdmin(viewer);
+  const isHostUser = canStart && [meeting.doctorId, meeting.adminId].map(String).includes(viewerId);
+
+  return {
+    meetingId: String(meeting.meetingId),
+    meetingNumber: String(meeting.meetingId),
+    joinUrl: meeting.joinUrl || meeting.join_url || "",
+    startUrl: isHostUser ? meeting.startUrl || meeting.start_url || "" : "",
+    password: meeting.password || "",
+    doctorId: String(meeting.doctorId),
+    patientId: String(meeting.patientId),
+    adminId: String(meeting.adminId || ""),
+    conversationId: String(meeting.conversationId || ""),
+    status: meeting.status,
+    createdAt: meeting.createdAt,
+    endedAt: meeting.endedAt || null,
+  };
+};
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "physihome-video-calling" });
@@ -231,7 +239,7 @@ app.post("/api/meetings/create", authMiddleware, async (req, res) => {
     meeting._id = result.insertedId;
 
     const payload = {
-      ...meetingPayload(meeting),
+      ...meetingPayload(meeting, caller),
       callerId,
       callerName: displayName(await getUser(callerId)),
     };
@@ -279,9 +287,9 @@ app.get("/api/meetings", authMiddleware, async (req, res) => {
 
   const meetings = await db.collection("meetings").find(query).sort({ createdAt: -1 }).limit(200).toArray();
   res.json({
-    live: meetings.filter((m) => m.status === "live").map(meetingPayload),
-    scheduled: meetings.filter((m) => m.status === "scheduled").map(meetingPayload),
-    past: meetings.filter((m) => m.status === "completed").map(meetingPayload),
+    live: meetings.filter((m) => m.status === "live").map((m) => meetingPayload(m, user)),
+    scheduled: meetings.filter((m) => m.status === "scheduled").map((m) => meetingPayload(m, user)),
+    past: meetings.filter((m) => m.status === "completed").map((m) => meetingPayload(m, user)),
   });
 });
 
