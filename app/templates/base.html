@@ -4,6 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}PhysiHome{% endblock %}</title>
+    <script>
+      (() => {
+        try {
+          const storedTheme = String(localStorage.getItem("theme") || "").trim().toLowerCase();
+          const prefersDark =
+            typeof window.matchMedia === "function" &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches;
+          const theme = storedTheme === "dark" || storedTheme === "light"
+            ? storedTheme
+            : (prefersDark ? "dark" : "light");
+          if (theme === "dark") {
+            document.documentElement.setAttribute("data-theme", "dark");
+          } else {
+            document.documentElement.removeAttribute("data-theme");
+          }
+        } catch {
+          // Ignore storage access errors and fall back to default theme.
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="{{ url_for('static', path='css/main.css') }}?v={{ static_version }}" />
     <script defer src="{{ url_for('static', path='js/main.js') }}?v={{ static_version }}"></script>
   </head>

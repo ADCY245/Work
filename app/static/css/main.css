@@ -1025,7 +1025,11 @@ textarea {
   border: 1px solid rgba(27, 36, 64, 0.2);
   font-size: 1rem;
   font-family: inherit;
-  background: #fff;
+  background: var(--card);
+  color: var(--text);
+  caret-color: var(--text);
+  -webkit-text-fill-color: var(--text);
+  opacity: 1;
 }
 
 input:focus,
@@ -1033,6 +1037,12 @@ select:focus,
 textarea:focus {
   outline: 2px solid rgba(34, 211, 238, 0.22);
   border-color: var(--brand);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 
 .form-grid {
