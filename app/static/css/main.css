@@ -1837,6 +1837,93 @@ textarea::placeholder {
   color: #fff;
 }
 
+html[data-theme="dark"] .messages-board {
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.14), transparent 30%),
+    linear-gradient(180deg, rgba(11, 18, 32, 0.98), rgba(15, 23, 42, 0.94));
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] .messages-inbox,
+html[data-theme="dark"] .conversation-panel,
+html[data-theme="dark"] .calendar-sidebar,
+html[data-theme="dark"] .calendar-panel,
+html[data-theme="dark"] .thread-link {
+  background: rgba(15, 23, 42, 0.9);
+  border-color: rgba(148, 163, 184, 0.16);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18);
+}
+
+html[data-theme="dark"] .thread-link:hover {
+  box-shadow: 0 14px 34px rgba(2, 8, 23, 0.45);
+  border-color: rgba(34, 211, 238, 0.35);
+}
+
+html[data-theme="dark"] .conversation-toolbar,
+html[data-theme="dark"] .message-form {
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+html[data-theme="dark"] .message-form {
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0), rgba(15, 23, 42, 0.96) 40%);
+}
+
+html[data-theme="dark"] .message-bubble {
+  background: rgba(30, 41, 59, 0.94);
+  border-color: rgba(148, 163, 184, 0.14);
+  box-shadow: 0 8px 20px rgba(2, 8, 23, 0.2);
+}
+
+html[data-theme="dark"] .message-row.me .message-bubble {
+  background: rgba(21, 128, 61, 0.22);
+  border-color: rgba(74, 222, 128, 0.22);
+}
+
+html[data-theme="dark"] .message-text,
+html[data-theme="dark"] .thread-link strong,
+html[data-theme="dark"] .messages-header h1,
+html[data-theme="dark"] .messages-inbox h3,
+html[data-theme="dark"] .conversation-toolbar h3,
+html[data-theme="dark"] [data-no-chat] {
+  color: var(--text);
+}
+
+html[data-theme="dark"] .messages-header .muted,
+html[data-theme="dark"] .thread-link .muted,
+html[data-theme="dark"] .message-status,
+html[data-theme="dark"] .message-meta,
+html[data-theme="dark"] .conversation-status .muted,
+html[data-theme="dark"] .small.muted {
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .appointment-card {
+  background: rgba(8, 145, 178, 0.14);
+  border-color: rgba(34, 211, 238, 0.26);
+}
+
+html[data-theme="dark"] .incoming-call-avatar {
+  background: rgba(21, 128, 61, 0.22);
+  color: #bbf7d0;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
+}
+
+html[data-theme="dark"] .slot-chip {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(148, 163, 184, 0.18);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .slot-chip:disabled {
+  background: rgba(51, 65, 85, 0.55);
+  color: rgba(226, 232, 240, 0.58);
+}
+
+html[data-theme="dark"] .modal {
+  background: var(--card);
+  color: var(--text);
+}
+
 .calendar-layout {
   display: grid;
   grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
