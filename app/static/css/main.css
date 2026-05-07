@@ -13,6 +13,17 @@
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
+ html[data-theme="dark"] {
+   color-scheme: dark;
+   --bg: #0b1220;
+   --text: #e5e7eb;
+   --muted: #a1a6b3;
+   --card: #0f172a;
+   --brand-soft: rgba(34, 211, 238, 0.18);
+   --brand-soft-2: rgba(217, 70, 239, 0.18);
+   --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+ }
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -172,7 +183,34 @@ ul {
 .profile-menu {
   position: relative;
   justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
 }
+
+ .theme-toggle {
+   width: 42px;
+   height: 42px;
+   border-radius: 999px;
+   padding: 0;
+   border: none;
+   background: var(--brand-soft);
+   color: var(--text);
+   display: grid;
+   place-items: center;
+   cursor: pointer;
+   transition: background 0.2s ease, color 0.2s ease;
+ }
+
+ .theme-toggle:hover,
+ .theme-toggle:focus-visible {
+   background: rgba(34, 211, 238, 0.18);
+ }
+
+ .theme-icon {
+   font-size: 1.05rem;
+   line-height: 1;
+ }
 
 .profile-icon {
   width: 42px;

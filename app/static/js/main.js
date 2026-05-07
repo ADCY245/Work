@@ -12,6 +12,46 @@ document.addEventListener("DOMContentLoaded", () => {
     return `${y}-${m}-${day}`;
   };
 
+  const initThemeToggle = () => {
+    const toggle = document.querySelector("[data-theme-toggle]");
+    if (!toggle) return;
+
+    const root = document.documentElement;
+    const key = "theme";
+
+    const systemPrefersDark = () =>
+      typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+    const getTheme = () => {
+      const stored = String(localStorage.getItem(key) || "").trim().toLowerCase();
+      if (stored === "dark" || stored === "light") return stored;
+      return systemPrefersDark() ? "dark" : "light";
+    };
+
+    const setIcon = (theme) => {
+      const icon = toggle.querySelector(".theme-icon");
+      if (!icon) return;
+      icon.textContent = theme === "dark" ? "☀" : "☾";
+    };
+
+    const applyTheme = (theme) => {
+      if (theme === "dark") {
+        root.setAttribute("data-theme", "dark");
+      } else {
+        root.removeAttribute("data-theme");
+      }
+      setIcon(theme);
+    };
+
+    applyTheme(getTheme());
+
+    toggle.addEventListener("click", () => {
+      const next = (root.getAttribute("data-theme") || "") === "dark" ? "light" : "dark";
+      localStorage.setItem(key, next);
+      applyTheme(next);
+    });
+  };
+
   const istSlotStartMs = (ymd, hour) => {
     if (!ymd) return NaN;
     const parts = String(ymd).split("-").map((n) => Number(n));
@@ -2255,6 +2295,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initLicenseRequiredPrompt();
   initDescriptionRequiredPrompt();
   initPresenceHeartbeat();
+  initThemeToggle();
   initDescriptionEditor();
   initDoctorCards();
   initAdminKebabMenus();

@@ -38,6 +38,9 @@
           </li>
         </ul>
         <div class="profile-menu" data-auth="{{ 'true' if is_authenticated else 'false' }}">
+          <button class="theme-toggle" type="button" aria-label="Toggle dark mode" data-theme-toggle>
+            <span class="theme-icon" aria-hidden="true">☾</span>
+          </button>
           <button class="profile-icon" type="button" tabindex="0">
             <img src="{{ avatar_url }}" alt="Profile avatar" />
           </button>
