@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block title %}Find Home-Visit Doctors | PhysiHome{% endblock %}
+{% block title %}Find Home-Visit Physiotherapists | PhysiHome{% endblock %}
 {% block content %}
 <section class="page-hero">
   <p class="eyebrow">Trusted physiotherapists</p>
-  <h1>Search home-visit doctors by city or PIN code.</h1>
+  <h1>Search home-visit physiotherapists by city or PIN code.</h1>
   <p>Use a PIN to find exact or nearby matches faster. We prioritize city matches, then exact PINs, then nearby PIN clusters.</p>
 </section>
 
@@ -17,13 +17,13 @@
       PIN code
       <input type="text" name="pin_code" placeholder="e.g. 400060" inputmode="numeric" pattern="\d{3,6}" value="{{ search_pin }}" />
     </label>
-    <button type="submit" class="btn primary">Search doctors</button>
+    <button type="submit" class="btn primary">Search physiotherapists</button>
     <a class="btn secondary" href="/doctors">Clear</a>
   </form>
   <p class="muted small" style="margin-top: 0.75rem;">Search by city, exact PIN, or nearby PIN prefix. Entering only a PIN works too.</p>
   {% if search_city or search_pin %}
   <p class="muted small" style="margin-top: 0.75rem;">
-    Showing <strong>{{ result_count }}</strong> doctor{% if result_count != 1 %}s{% endif %} for
+    Showing <strong>{{ result_count }}</strong> physiotherapist{% if result_count != 1 %}s{% endif %} for
     {% if search_city %}<strong>{{ search_city|title }}</strong>{% endif %}
     {% if search_city and search_pin %} · {% endif %}
     {% if search_pin %}PIN <strong>{{ search_pin }}</strong>{% endif %}.
@@ -39,7 +39,7 @@
 <section class="card-list doctor-results">
   {% if doctors|length == 0 %}
   <article class="card empty-state">
-    <h3>No doctors found</h3>
+    <h3>No physiotherapists found</h3>
     <p>Try widening your PIN radius or clearing the city filter.</p>
     <a class="btn secondary" href="/doctors">Reset search</a>
   </article>

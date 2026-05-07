@@ -879,6 +879,13 @@ async def doctors(
     city: str | None = Query(None),
     pin_code: str | None = Query(None),
 ):
+    user = await get_user_from_request(request)
+    if not user:
+        return RedirectResponse(
+            url="/login?error=Please+log+in+to+find+physiotherapists.",
+            status_code=303,
+        )
+
     db = get_database()
     search_city_raw = (city or "").strip()
     search_city = search_city_raw.lower()
@@ -981,8 +988,11 @@ async def doctors(
 
 
 @router.get("/login", response_class=HTMLResponse)
-async def login(request: Request):
-    return templates.TemplateResponse("auth/login.html", await build_context(request))
+async def login(request: Request, error: str | None = Query(None)):
+    return templates.TemplateResponse(
+        "auth/login.html",
+        await build_context(request, error=error),
+    )
 
 
 @router.get("/forgot-password", response_class=HTMLResponse)
