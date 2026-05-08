@@ -31,12 +31,24 @@
     <header class="site-header">
       <nav class="navbar">
         <div class="brand">PhysiHome</div>
-        <ul class="nav-links">
+        <button
+          class="nav-toggle"
+          type="button"
+          aria-label="Toggle navigation"
+          aria-expanded="false"
+          aria-controls="site-navigation"
+          data-nav-toggle
+        >
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <ul class="nav-links" id="site-navigation" data-nav-links>
           <li><a href="/">Home</a></li>
           <li><a href="/doctors">Find Physiotherapists</a></li>
           <li><a href="/about">About Us</a></li>
           <li class="nav-dropdown">
-            <button class="nav-link" type="button">Services</button>
+            <button class="nav-link" type="button" aria-expanded="false">Services</button>
             <div class="dropdown-menu">
               <a href="/mobile-physiotherapy">Mobile Physiotherapy</a>
               <a href="/what-we-treat">What We Treat</a>
@@ -44,7 +56,7 @@
             </div>
           </li>
           <li class="nav-dropdown">
-            <button class="nav-link" type="button">Contact</button>
+            <button class="nav-link" type="button" aria-expanded="false">Contact</button>
             <div class="dropdown-menu dropdown-menu-right">
               <a href="/contact">Contact Us</a>
               <a href="/faq">FAQ</a>

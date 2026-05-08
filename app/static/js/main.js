@@ -224,6 +224,92 @@ document.addEventListener("DOMContentLoaded", () => {
 
   initDobFields();
 
+  const initMobileNav = () => {
+    const header = document.querySelector(".site-header");
+    const toggle = document.querySelector("[data-nav-toggle]");
+    const navLinks = document.querySelector("[data-nav-links]");
+    if (!header || !toggle || !navLinks) return;
+
+    const setOpen = (open) => {
+      header.classList.toggle("nav-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      document.body.classList.toggle("nav-open", open);
+    };
+
+    toggle.addEventListener("click", () => {
+      const open = !header.classList.contains("nav-open");
+      setOpen(open);
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!header.contains(event.target)) {
+        setOpen(false);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    });
+
+    navLinks.querySelectorAll("a").forEach((link) => {
+      link.addEventListener("click", () => setOpen(false));
+    });
+
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 640) {
+        setOpen(false);
+      }
+    });
+  };
+
+  const initNavDropdowns = () => {
+    const dropdowns = document.querySelectorAll(".nav-dropdown");
+    if (!dropdowns.length) return;
+
+    const closeAll = (except) => {
+      dropdowns.forEach((dropdown) => {
+        const button = dropdown.querySelector(".nav-link");
+        const shouldOpen = dropdown === except;
+        dropdown.classList.toggle("open", shouldOpen);
+        if (button) {
+          button.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+        }
+      });
+    };
+
+    dropdowns.forEach((dropdown) => {
+      const button = dropdown.querySelector(".nav-link");
+      if (!button) return;
+
+      button.addEventListener("click", (event) => {
+        if (window.innerWidth > 640) return;
+        event.preventDefault();
+        const isOpen = dropdown.classList.contains("open");
+        closeAll(isOpen ? null : dropdown);
+      });
+    });
+
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".nav-dropdown")) {
+        closeAll(null);
+      }
+    });
+
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        closeAll(null);
+      }
+    });
+
+    window.addEventListener("resize", () => {
+      if (window.innerWidth > 640) {
+        closeAll(null);
+      }
+    });
+  };
+
   const initLoggedInSearch = () => {
     document.querySelectorAll("[data-search-toggle]").forEach((button) => {
       const container = button.closest(".logged-in-search");
@@ -2296,6 +2382,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initDescriptionRequiredPrompt();
   initPresenceHeartbeat();
   initThemeToggle();
+  initMobileNav();
+  initNavDropdowns();
   initDescriptionEditor();
   initDoctorCards();
   initAdminKebabMenus();

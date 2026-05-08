@@ -2,10 +2,18 @@ from functools import lru_cache
 from typing import Literal
 
 from pydantic import Field, model_validator
+from pydantic import ConfigDict
 from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        populate_by_name=True,
+        extra="ignore",
+    )
+
     app_name: str = "PhysiHome"
     environment: Literal["dev", "prod", "test"] = "dev"
 
@@ -72,12 +80,6 @@ class Settings(BaseSettings):
         if not self.notifications_from_email:
             self.notifications_from_email = self.email_from_fallback
         return self
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        populate_by_name = True
-
 
 @lru_cache
 def get_settings() -> Settings:

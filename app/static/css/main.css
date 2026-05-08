@@ -95,6 +95,41 @@ ul {
   min-height: 36px;
 }
 
+.nav-toggle {
+  display: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(27, 36, 64, 0.12);
+  border-radius: 0.9rem;
+  background: var(--card);
+  color: var(--text);
+  align-items: center;
+  justify-content: center;
+  gap: 0.28rem;
+  padding: 0.7rem;
+}
+
+.nav-toggle span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.site-header.nav-open .nav-toggle span:nth-child(1) {
+  transform: translateY(6px) rotate(45deg);
+}
+
+.site-header.nav-open .nav-toggle span:nth-child(2) {
+  opacity: 0;
+}
+
+.site-header.nav-open .nav-toggle span:nth-child(3) {
+  transform: translateY(-6px) rotate(-45deg);
+}
+
 .nav-links {
   display: flex;
   align-items: center;
@@ -165,6 +200,14 @@ ul {
 .nav-dropdown:hover .dropdown-menu,
 .nav-dropdown:focus-within .dropdown-menu {
   display: block;
+}
+
+.nav-dropdown.open > .dropdown-menu {
+  display: block;
+}
+
+.nav-dropdown.open > .nav-link {
+  color: var(--brand-dark);
 }
 
 .nav-links a:hover,
@@ -433,6 +476,7 @@ a.btn {
 .hero-visual {
   position: relative;
   min-height: 320px;
+  min-width: 0;
 }
 
 .hero-visual .card {
@@ -2435,15 +2479,161 @@ html[data-theme="dark"] .modal {
 
 @media (max-width: 640px) {
   .navbar {
-    grid-template-columns: 1fr auto;
+    grid-template-columns: 1fr auto auto;
+    gap: 0.75rem;
+    padding: 0.85rem 1rem;
+  }
+
+  .nav-toggle {
+    display: inline-flex;
   }
 
   .nav-links {
     display: none;
+    grid-column: 1 / -1;
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 0.25rem;
+    width: 100%;
+    padding: 0.85rem;
+    margin-top: 0.35rem;
+    border: 1px solid rgba(23, 26, 38, 0.08);
+    border-radius: 1rem;
+    background: var(--card);
+    box-shadow: var(--shadow);
+  }
+
+  .site-header.nav-open .nav-links {
+    display: flex;
+  }
+
+  .nav-links > li > a,
+  .nav-link {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 0.85rem;
+    border-radius: 0.85rem;
+  }
+
+  .nav-dropdown {
+    width: 100%;
+  }
+
+  .nav-dropdown > .nav-link::after {
+    margin-left: auto;
+  }
+
+  .dropdown-menu,
+  .dropdown-menu-right {
+    position: static;
+    top: auto;
+    left: auto;
+    right: auto;
+    min-width: 0;
+    margin-top: 0.25rem;
+    border-radius: 0.85rem;
+    box-shadow: none;
+  }
+
+  .nav-dropdown:hover .dropdown-menu,
+  .nav-dropdown:focus-within .dropdown-menu {
+    display: none;
+  }
+
+  .nav-dropdown.open .dropdown-menu {
+    display: block;
+  }
+
+  .profile-menu {
+    gap: 0.45rem;
+  }
+
+  .profile-menu .dropdown {
+    position: absolute;
+    top: calc(100% + 0.5rem);
+    right: 0;
+    min-width: 170px;
   }
 
   .hero {
     grid-template-columns: 1fr;
+    gap: 1.5rem;
+    padding: 2rem 0;
+  }
+
+  .hero-text h1,
+  .home-hero-copy h1 {
+    font-size: clamp(2rem, 10vw, 2.7rem);
+  }
+
+  .hero-text p,
+  .home-hero-copy .tagline {
+    max-width: none;
+  }
+
+  .hero-visual {
+    min-height: 0;
+  }
+
+  .hero-visual .card {
+    padding: 1.2rem;
+  }
+
+  .floating-message {
+    position: static;
+    max-width: none;
+    margin-top: 0.85rem;
+  }
+
+  .home-hero,
+  .split-grid,
+  .service-card-grid,
+  .why-grid {
+    gap: 1.25rem;
+  }
+
+  .home-hero {
+    padding: 1.5rem 1rem 0.75rem;
+  }
+
+  .section-heading {
+    padding: 0 1rem;
+  }
+
+  .section-heading h2 {
+    font-size: 1.45rem;
+  }
+
+  .split-grid,
+  .service-card-grid,
+  .why-grid {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  .home-hero-image,
+  .split-image,
+  .service-card-media {
+    min-height: 220px;
+  }
+
+  .pillars,
+  .how-it-works ol {
+    grid-template-columns: 1fr;
+  }
+
+  .cta-banner {
+    padding: 1.4rem;
+    margin-top: 2.5rem;
+  }
+
+  .cta-banner .btn {
+    width: 100%;
+    justify-content: center;
   }
 
   .form-grid.two-col {
