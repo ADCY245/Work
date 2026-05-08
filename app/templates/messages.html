@@ -74,11 +74,19 @@
         <div class="messages-list" data-messages-list>
           {% for msg in messages %}
             {% if msg.is_me %}
-            <div class="message-row me" data-message-id="{{ msg._id }}" data-created-at="{{ msg.created_at }}">
+            <div class="message-row me{% if msg.is_deleted %} deleted{% endif %}" data-message-id="{{ msg._id }}" data-created-at="{{ msg.created_at }}">
             {% else %}
-            <div class="message-row" data-message-id="{{ msg._id }}" data-created-at="{{ msg.created_at }}">
+            <div class="message-row{% if msg.is_deleted %} deleted{% endif %}" data-message-id="{{ msg._id }}" data-created-at="{{ msg.created_at }}">
             {% endif %}
-              <div class="message-bubble">
+              <div class="message-bubble{% if msg.is_me and not msg.is_deleted %} has-actions{% endif %}">
+                {% if msg.is_me and not msg.is_deleted %}
+                <div class="message-actions">
+                  <button class="message-menu-btn" type="button" aria-label="Message options" data-message-menu-trigger>&#8942;</button>
+                  <div class="message-menu" hidden data-message-menu>
+                    <button class="message-menu-item" type="button" data-delete-message>Delete</button>
+                  </div>
+                </div>
+                {% endif %}
                 <p class="message-text">{{ msg.text }}</p>
               </div>
               {% if loop.last and msg.is_me %}

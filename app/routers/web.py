@@ -277,14 +277,28 @@ async def _conversation_presence_payload(db, convo: dict, user_id: str) -> dict:
 
 def _message_payload(msg: dict, user_id: str, convo: dict) -> dict:
     created_at = msg.get("created_at")
+    is_deleted = bool(msg.get("deleted_at"))
+    sender_id = str(msg.get("sender_id") or "")
+    is_me = sender_id == str(user_id)
+    text = "This message was deleted" if is_deleted else (
+        (_decrypt_text(msg.get("ciphertext") or "") or "").strip() if "ciphertext" in msg else (msg.get("text") or "").strip()
+    )
     return {
         "_id": str(msg.get("_id")) if msg.get("_id") is not None else "",
-        "sender_id": msg.get("sender_id"),
-        "text": (_decrypt_text(msg.get("ciphertext") or "") or "").strip() if "ciphertext" in msg else (msg.get("text") or "").strip(),
+        "sender_id": sender_id,
+        "text": text,
         "created_at": _iso(created_at),
-        "is_me": msg.get("sender_id") == user_id,
-        "seen_by_other": _message_seen_by_others(convo, created_at, msg.get("sender_id")),
+        "is_me": is_me,
+        "is_deleted": is_deleted,
+        "can_delete": is_me and not is_deleted,
+        "seen_by_other": _message_seen_by_others(convo, created_at, sender_id),
     }
+
+
+def _message_owned_by_user(msg: dict, user_id: str) -> bool:
+    sender_id = str(msg.get("sender_id") or "").strip()
+    current_user_id = str(user_id or "").strip()
+    return bool(sender_id and current_user_id and sender_id == current_user_id)
 
 
 async def _compute_unread_count(db, conversation: dict, user_id: str) -> int:
@@ -1353,10 +1367,64 @@ async def api_send_message(request: Request, thread_id: str, text: str = Form(""
                 "text": message,
                 "created_at": _iso(now),
                 "is_me": True,
+                "is_deleted": False,
+                "can_delete": True,
                 "seen_by_other": False,
             }
         }
     )
+
+
+@router.post("/api/messages/{thread_id}/{message_id}/delete")
+async def api_delete_message(request: Request, thread_id: str, message_id: str):
+    user = await get_user_from_request(request)
+    if not user:
+        return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+    db = get_database()
+    user_id = str(user.get("_id"))
+    await _touch_presence(db, user_id, thread_id)
+    try:
+        convo_oid = ObjectId(thread_id)
+        msg_oid = ObjectId(message_id)
+    except Exception:
+        return JSONResponse({"error": "Invalid conversation or message"}, status_code=400)
+
+    convo = await db.conversations.find_one({"_id": convo_oid, "participants": user_id})
+    if not convo:
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    if _is_messaging_restricted(user):
+        if not (await _restricted_can_access_conversation(db, user, convo)):
+            role = str(user.get("role") or "").strip().lower()
+            if role == "doctor":
+                return JSONResponse(_restricted_access_error(), status_code=403)
+            return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    message = await db.messages.find_one({"_id": msg_oid, "conversation_id": str(convo_oid)})
+    if not message:
+        return JSONResponse({"error": "Message not found"}, status_code=404)
+    if not _message_owned_by_user(message, user_id):
+        return JSONResponse({"error": "You can only delete your own messages"}, status_code=403)
+    if message.get("deleted_at"):
+        return JSONResponse({"ok": True, "message": _message_payload(message, user_id, convo)})
+
+    now = _utcnow_ms()
+    await db.messages.update_one(
+        {"_id": msg_oid},
+        {
+            "$set": {
+                "deleted_at": now,
+                "deleted_by": user_id,
+            },
+            "$unset": {
+                "ciphertext": "",
+                "text": "",
+            },
+        },
+    )
+    updated = await db.messages.find_one({"_id": msg_oid})
+    return JSONResponse({"ok": True, "message": _message_payload(updated or message, user_id, convo)})
 
 
 @router.get("/api/messages/{thread_id}/since")

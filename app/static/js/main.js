@@ -1174,30 +1174,75 @@ document.addEventListener("DOMContentLoaded", () => {
       updateSeenReceipts(otherLastReadAt);
     }
 
+    const renderMessageRow = (m) => {
+      const row = document.createElement("div");
+      row.className = m.is_me ? "message-row me" : "message-row";
+      if (m.is_deleted) {
+        row.classList.add("deleted");
+      }
+      if (m._id) row.dataset.messageId = m._id;
+      if (m.created_at) row.dataset.createdAt = m.created_at;
+
+      const bubble = document.createElement("div");
+      bubble.className = "message-bubble";
+      if (m.is_me && !m.is_deleted) {
+        bubble.classList.add("has-actions");
+
+        const actions = document.createElement("div");
+        actions.className = "message-actions";
+
+        const menuBtn = document.createElement("button");
+        menuBtn.className = "message-menu-btn";
+        menuBtn.type = "button";
+        menuBtn.setAttribute("aria-label", "Message options");
+        menuBtn.dataset.messageMenuTrigger = "true";
+        menuBtn.innerHTML = "&#8942;";
+
+        const menu = document.createElement("div");
+        menu.className = "message-menu";
+        menu.hidden = true;
+        menu.dataset.messageMenu = "true";
+
+        const deleteBtn = document.createElement("button");
+        deleteBtn.className = "message-menu-item";
+        deleteBtn.type = "button";
+        deleteBtn.dataset.deleteMessage = "true";
+        deleteBtn.textContent = "Delete";
+        menu.appendChild(deleteBtn);
+
+        actions.append(menuBtn, menu);
+        bubble.appendChild(actions);
+      }
+
+      const text = document.createElement("p");
+      text.className = "message-text";
+      text.textContent = (m.text || "").trim();
+      bubble.appendChild(text);
+      row.appendChild(bubble);
+      return row;
+    };
+
+    const upsertMessage = (m) => {
+      if (!messagesList) return;
+      emptyState?.remove();
+      const existingRow = m._id ? messagesList.querySelector(`[data-message-id="${CSS.escape(m._id)}"]`) : null;
+      const row = renderMessageRow(m);
+      if (existingRow) {
+        existingRow.replaceWith(row);
+      } else {
+        messagesList.appendChild(row);
+      }
+    };
+
     const appendMessages = (msgs) => {
       if (!messagesList) return;
       msgs.forEach((m) => {
         const seenKey = messageKey(m);
-        if (seenKey && seen.has(seenKey)) {
+        if (seenKey && seen.has(seenKey) && !m.is_deleted) {
           return;
         }
 
-        emptyState?.remove();
-
-        const row = document.createElement("div");
-        row.className = m.is_me ? "message-row me" : "message-row";
-        if (m._id) row.dataset.messageId = m._id;
-        if (m.created_at) row.dataset.createdAt = m.created_at;
-
-        const bubble = document.createElement("div");
-        bubble.className = "message-bubble";
-
-        const text = document.createElement("p");
-        text.className = "message-text";
-        text.textContent = (m.text || "").trim();
-        bubble.appendChild(text);
-        row.appendChild(bubble);
-        messagesList.appendChild(row);
+        upsertMessage(m);
 
         if (seenKey) seen.add(seenKey);
         if (m.created_at) lastSeen = m.created_at;
@@ -1559,6 +1604,102 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       });
     }
+
+    const closeMessageMenus = () => {
+      messagesList?.querySelectorAll(".message-row.menu-open").forEach((row) => {
+        row.classList.remove("menu-open");
+      });
+      messagesList?.querySelectorAll("[data-message-menu]").forEach((menu) => {
+        menu.hidden = true;
+      });
+    };
+
+    const openMessageMenu = (row, menu) => {
+      if (!row || !menu) return;
+      closeMessageMenus();
+      row.classList.add("menu-open");
+      menu.hidden = false;
+    };
+
+    let longPressTimer = null;
+
+    messagesList?.addEventListener("click", (event) => {
+      const trigger = event.target.closest("[data-message-menu-trigger]");
+      if (!trigger) {
+        if (!event.target.closest("[data-message-menu]")) {
+          closeMessageMenus();
+        }
+        return;
+      }
+
+      event.preventDefault();
+      event.stopPropagation();
+      const row = trigger.closest(".message-row");
+      const menu = row?.querySelector("[data-message-menu]");
+      if (!row || !menu) return;
+      const willOpen = menu.hidden;
+      if (!willOpen) {
+        closeMessageMenus();
+        return;
+      }
+      openMessageMenu(row, menu);
+    });
+
+    messagesList?.addEventListener("pointerdown", (event) => {
+      const row = event.target.closest(".message-row.me");
+      if (!row || event.target.closest("[data-message-menu-trigger]") || event.target.closest("[data-message-menu]")) return;
+      if (event.pointerType !== "touch") return;
+      longPressTimer = window.setTimeout(() => {
+        const menu = row.querySelector("[data-message-menu]");
+        if (!menu) return;
+        openMessageMenu(row, menu);
+      }, 550);
+    });
+
+    const cancelLongPress = () => {
+      if (longPressTimer) {
+        window.clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
+
+    messagesList?.addEventListener("pointerup", cancelLongPress);
+    messagesList?.addEventListener("pointercancel", cancelLongPress);
+    messagesList?.addEventListener("pointerleave", cancelLongPress);
+    document.addEventListener("click", (event) => {
+      if (!event.target.closest(".message-row")) {
+        closeMessageMenus();
+      }
+    });
+
+    messagesList?.addEventListener("click", async (event) => {
+      const deleteBtn = event.target.closest("[data-delete-message]");
+      if (!deleteBtn || !activeThreadId) return;
+      const row = deleteBtn.closest("[data-message-id]");
+      const messageId = row?.dataset.messageId;
+      if (!messageId) return;
+      if (!confirm("Delete this message for everyone?")) return;
+
+      try {
+        const res = await fetch(`/api/messages/${activeThreadId}/${messageId}/delete`, {
+          method: "POST",
+          headers: { Accept: "application/json" },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const fallback = typeof data?.detail === "string" ? data.detail : "";
+          alert(data.error || fallback || `Could not delete message (${res.status})`);
+          return;
+        }
+        if (data.message) {
+          upsertMessage(data.message);
+          updateSeenReceipts(otherLastReadAt);
+          closeMessageMenus();
+        }
+      } catch {
+        alert("Could not delete message");
+      }
+    });
 
     openAppointmentBtn?.addEventListener("click", async () => {
       await loadCalendar();
